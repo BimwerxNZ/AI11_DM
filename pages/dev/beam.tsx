@@ -1,8 +1,13 @@
 import * as React from 'react';
 
-import { AppBeam } from '../../src/apps/beam/AppBeam';
-
+import { navigateToIndex } from '../../src/common/app.routes';
 import { withNextJSPerPageLayout } from '~/common/layout/withLayout';
 
 
-export default withNextJSPerPageLayout({ type: 'optima' }, () => <AppBeam />);
+export default withNextJSPerPageLayout({ type: 'optima' }, function DesignMateBeamDisabledPage() {
+  React.useEffect(() => {
+    void navigateToIndex(true);
+  }, []);
+
+  return null;
+});

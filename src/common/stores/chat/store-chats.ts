@@ -32,6 +32,7 @@ export interface ChatActions {
   // CRUD conversations
   prependNewConversation: (personaId: SystemPurposeId | undefined, isIncognito: boolean) => DConversationId;
   importConversation: (c: DConversation, preventClash: boolean) => DConversationId;
+  upsertConversation: (c: DConversation) => DConversationId;
   branchConversation: (cId: DConversationId, mId: DMessageId | null) => DConversationId | null;
   deleteConversations: (cIds: DConversationId[], newConversationPersonaId?: SystemPurposeId) => DConversationId;
 
@@ -114,6 +115,30 @@ export const useChatStore = create<ConversationsStore>()(/*devtools(*/
         });
 
         // [workspace] import messages' LiveFiles
+        workspaceActions().importAssignmentsFromMessages(workspaceForConversationIdentity(conversation.id), conversation.messages);
+
+        return conversation.id;
+      },
+
+      upsertConversation: (conversation: DConversation): DConversationId => {
+        const { conversations } = _get();
+
+        V4ToHeadConverters.inMemHeadCleanDConversations([conversation]);
+        conversation.tokenCount = updateMessagesTokenCounts(conversation.messages, true, 'upsertConversation');
+
+        const existingIndex = conversations.findIndex(_c => _c.id === conversation.id);
+        if (existingIndex < 0) {
+          _set({
+            conversations: [conversation, ...conversations],
+          });
+        } else {
+          const nextConversations = [...conversations];
+          nextConversations[existingIndex] = conversation;
+          _set({
+            conversations: nextConversations,
+          });
+        }
+
         workspaceActions().importAssignmentsFromMessages(workspaceForConversationIdentity(conversation.id), conversation.messages);
 
         return conversation.id;

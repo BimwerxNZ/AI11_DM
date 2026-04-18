@@ -73,7 +73,7 @@ export async function openConversationsAtRestPicker(): Promise<FileWithHandle[] 
   try {
     return await fileOpen({
       description: `${Brand.Title.Base} JSON Conversations`,
-      mimeTypes: ['application/json', 'application/big-agi'],
+      mimeTypes: ['application/json', 'application/designmate', 'application/big-agi'],
       multiple: true,
     });
   } catch (error) {

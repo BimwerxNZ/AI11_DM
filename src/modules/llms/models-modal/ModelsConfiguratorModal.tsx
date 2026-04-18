@@ -33,10 +33,11 @@ import { ModelsList } from './ModelsList';
 import { ModelsServiceSelector } from './ModelsServiceSelector';
 import { ModelsWizard } from './ModelsWizard';
 import { useLlmUpdateModels } from '../llm.client.hooks';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 
 // configuration
-const MODELS_WIZARD_ENABLE_INITIALLY = true;
+const MODELS_WIZARD_ENABLE_INITIALLY = !DesignMateFeatures.streamlinedModelsSetup;
 
 
 type TabValue = 'wizard' | 'setup' | 'defaults';
@@ -104,8 +105,10 @@ export function ModelsConfiguratorModal(props: {
   // [effect] Re-trigger easy mode when going back to 0 services
   const triggerWizard = !modelsServices.length;
   React.useEffect(() => {
-    if (triggerWizard)
+    if (triggerWizard && MODELS_WIZARD_ENABLE_INITIALLY)
       setTab('wizard');
+    else if (triggerWizard)
+      setTab('setup');
   }, [triggerWizard]);
 
 
@@ -395,7 +398,7 @@ export function ModelsConfiguratorModal(props: {
       markVisited();
   }, [markVisited]);
 
-  if (showExplainer) {
+  if (!DesignMateFeatures.streamlinedModelsSetup && showExplainer) {
     return (
       <GoodModal
         title={
@@ -431,7 +434,7 @@ export function ModelsConfiguratorModal(props: {
             You&#39;ll need to <strong>provide your API credentials</strong> to use AI services.
           </Typography>
           <Typography level='body-sm' textColor='text.secondary' lineHeight='lg'>
-            Big-AGI connects directly to the latest AI models using your API keys.{' '}
+            DesignMate connects directly to the latest AI models using your API keys.{' '}
             {/*Big-AGI is a local App running on your computer.{' '}*/}
             {/*We want you to have access to the top models. */}
             We don&#39;t limit or bill your usage, giving you full control,
@@ -481,7 +484,7 @@ export function ModelsConfiguratorModal(props: {
       fullscreen={isMobile ? 'button' : undefined} // NOTE: was disabled because on mobile there's one screen with a stretch issue - but can't reproduce
     >
 
-      {isTabWizard && (
+      {!DesignMateFeatures.streamlinedModelsSetup && isTabWizard && (
         <ModelsWizard
           isMobile={isMobile}
           onSkip={optimaActions().closeModels}

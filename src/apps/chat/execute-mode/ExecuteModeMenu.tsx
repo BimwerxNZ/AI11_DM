@@ -5,6 +5,7 @@ import { Box, MenuItem, Radio, Typography } from '@mui/joy';
 import { CloseablePopup } from '~/common/components/CloseablePopup';
 import { KeyStroke, platformAwareKeystrokes } from '~/common/components/KeyStroke';
 import { useUIPreferencesStore } from '~/common/stores/store-ui';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 import type { ChatExecuteMode } from './execute-mode.types';
 import { ExecuteModeItems } from './execute-mode.items';
@@ -37,6 +38,7 @@ export function ExecuteModeMenu(props: {
 
       {/* Items */}
       {Object.entries(ExecuteModeItems)
+        .filter(([key]) => key !== 'beam-content' || DesignMateFeatures.beam)
         .filter(([_key, data]) => !data.hideOnDesktop || props.isMobile)
         .map(([key, data]) =>
           <MenuItem key={'chat-mode-' + key} onClick={() => props.onSetChatExecuteMode(key as ChatExecuteMode)}>

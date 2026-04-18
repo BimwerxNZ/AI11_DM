@@ -8,6 +8,7 @@ import type { SystemPurposeExample } from '../../../data';
 
 import type { DiagramConfig } from '~/modules/aifn/digrams/DiagramsModal';
 import { speakText } from '~/modules/speex/speex.client';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 import type { ConversationHandler } from '~/common/chat-overlay/ConversationHandler';
 import type { DLLMContextTokens } from '~/common/stores/llms/llms.types';
@@ -134,6 +135,8 @@ export function ChatMessageList(props: {
   }, [conversationHandler, conversationId, onConversationExecuteHistory]);
 
   const handleMessageBeam = React.useCallback(async (messageId: DMessageId) => {
+    if (!DesignMateFeatures.beam) return;
+
     // Message option menu Beam
     if (!conversationId || !conversationHandler || !conversationHandler.isValid()) return;
     const inputHistory = conversationHandler.historyViewHeadOrThrow('chat-beam-message');
@@ -211,6 +214,8 @@ export function ChatMessageList(props: {
   }, [capabilityHasT2I, conversationId, onTextImagine]);
 
   const handleTextSpeak = React.useCallback(async (text: string) => {
+    if (!DesignMateFeatures.speech) return;
+
     // sandwich the speaking with the indicator
     setIsSpeaking(true);
     const result = await speakText(text, undefined, { label: 'Chat speak' });
@@ -368,7 +373,7 @@ export function ChatMessageList(props: {
               showUnsafeHtmlCode={danger_experimentalHtmlWebUi}
               onAddInReferenceTo={!composerCanAddInReferenceTo ? undefined : handleAddInReferenceTo}
               onMessageAssistantFrom={handleMessageAssistantFrom}
-              onMessageBeam={handleMessageBeam}
+              onMessageBeam={DesignMateFeatures.beam ? handleMessageBeam : undefined}
               onMessageBranch={handleMessageBranch}
               onMessageContinue={handleMessageContinue}
               onMessageDelete={handleMessageDelete}
@@ -379,7 +384,7 @@ export function ChatMessageList(props: {
               onMessageTruncate={handleMessageTruncate}
               onTextDiagram={handleTextDiagram}
               onTextImagine={capabilityHasT2I ? handleTextImagine : undefined}
-              onTextSpeak={handleTextSpeak}
+              onTextSpeak={DesignMateFeatures.speech ? handleTextSpeak : undefined}
             />
 
           );

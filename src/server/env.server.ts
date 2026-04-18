@@ -31,6 +31,12 @@ export const env = createEnv({
     // Backend MongoDB, for a more complete developer data platform.
     MDB_URI: z.string().optional(),
 
+    // DesignMate desktop API
+    DESIGNMATE_APP_TOKEN: z.string().optional(),
+    DESIGNMATE_API_VENDOR: z.enum(['anthropic', 'gemini', 'alibaba', 'azure', 'deepseek', 'groq', 'lmstudio', 'localai', 'mistral', 'moonshot', 'openai', 'openpipe', 'openrouter', 'perplexity', 'togetherai', 'xai', 'zai']).optional(),
+    DESIGNMATE_API_MODEL: z.string().optional(),
+    DESIGNMATE_API_REASONING: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
+
 
     // LLM: OpenAI
     OPENAI_API_KEY: z.string().optional(),

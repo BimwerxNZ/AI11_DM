@@ -1,3 +1,5 @@
+import { DesignMateBrand, DesignMateFeatures } from '~/modules/designmate/config';
+
 /**
  * Copyright (c)2024-2026 Enrico Ros
  *
@@ -10,8 +12,7 @@
  * We centralize here the version information of the app, to have a uniform configuration surface.
  */
 export const Release = {
-  // CHANGE ME - this is the tenant ID, 'dev' reserved for development only, 'open' reserved for GitHub
-  TenantSlug: 'open',
+  TenantSlug: 'designmate',
 
   // Future compatibility
   Features: {
@@ -24,7 +25,7 @@ export const Release = {
   // this is here to trigger revalidation of data, e.g. models refresh
   Monotonics: {
     Aix: 64,
-    NewsVersion: 204,
+    NewsVersion: DesignMateFeatures.news ? 204 : 0,
   },
 
   // Frontend: pretty features
@@ -59,14 +60,14 @@ export const Release = {
 
 
 export const BaseProduct = {
-  ProductName: 'Big-AGI',
-  ProductURL: 'https://big-agi.com',
-  PrivacyPolicy: 'https://big-agi.com/privacy',
-  TermsOfService: 'https://big-agi.com/terms',
+  ProductName: DesignMateBrand.titleBase,
+  ProductURL: DesignMateBrand.homeUrl,
+  PrivacyPolicy: DesignMateBrand.privacyPolicyUrl,
+  TermsOfService: DesignMateBrand.termsOfServiceUrl,
   // ecosystem
-  DocsBaseSite: 'https://big-agi.com/docs',
-  OpenSupportDiscord: 'https://discord.gg/MkH4qj2Jp9',
-  OpenSourceRepo: 'https://github.com/enricoros/big-agi',
+  DocsBaseSite: DesignMateBrand.docsBaseUrl,
+  OpenSupportDiscord: DesignMateBrand.supportInviteUrl,
+  OpenSourceRepo: DesignMateBrand.openRepoUrl,
   ReleaseNotes: '',
-  SupportForm: (_userId?: string) => 'https://github.com/enricoros/big-AGI/issues/new?template=ai-triage.yml',
+  SupportForm: (_userId?: string) => DesignMateBrand.supportFormUrl,
 } as const;

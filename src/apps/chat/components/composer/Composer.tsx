@@ -46,6 +46,7 @@ import { useComposerStartupText, useLogicSherpaStore } from '~/common/logic/stor
 import { useOverlayComponents } from '~/common/layout/overlays/useOverlayComponents';
 import { useUICounter, useUIPreferencesStore } from '~/common/stores/store-ui';
 import { useUXLabsStore } from '~/common/stores/store-ux-labs';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 import type { ActileItem } from './actile/ActileProvider';
 import { providerAttachmentLabels } from './actile/providerAttachmentLabels';
@@ -213,6 +214,9 @@ export function Composer(props: {
   const noConversation = !targetConversationId;
 
   const composerTextSuffix = chatExecuteMode === 'generate-image' && isDesktop && drawRepeat > 1 ? ` x${drawRepeat}` : '';
+  const speechFeatureEnabled = DesignMateFeatures.speech;
+  const beamFeatureEnabled = DesignMateFeatures.beam;
+  const callFeatureEnabled = DesignMateFeatures.call;
 
   const micIsRunning = !!speechInterimResult;
   // more mic way below, as we use complex hooks
@@ -397,9 +401,9 @@ export function Composer(props: {
 
   React.useEffect(() => {
     // autostart the microphone if the assistant stopped typing
-    if (micContinuationTrigger)
+    if (speechFeatureEnabled && micContinuationTrigger)
       toggleRecognition();
-  }, [toggleRecognition, micContinuationTrigger]);
+  }, [toggleRecognition, micContinuationTrigger, speechFeatureEnabled]);
 
   React.useEffect(() => {
     // auto-scroll the mic card to the bottom
@@ -411,11 +415,11 @@ export function Composer(props: {
 
   React.useEffect(() => {
     // auto-start the microphone if appChat was created with a particular intent
-    if (appChatNewChatIntent === 'voiceInput') {
+    if (speechFeatureEnabled && appChatNewChatIntent === 'voiceInput') {
       toggleRecognition();
       void removeQueryParam('newChat');
     }
-  }, [appChatNewChatIntent, toggleRecognition]);
+  }, [appChatNewChatIntent, speechFeatureEnabled, toggleRecognition]);
 
 
   // Other send actins
@@ -468,8 +472,9 @@ export function Composer(props: {
   // Secondary buttons
 
   const handleCallClicked = React.useCallback(() => {
+    if (!callFeatureEnabled) return;
     targetConversationId && systemPurposeId && launchAppCall(targetConversationId, systemPurposeId);
-  }, [systemPurposeId, targetConversationId]);
+  }, [callFeatureEnabled, systemPurposeId, targetConversationId]);
 
   const handleDrawOptionsClicked = React.useCallback(() => optimaOpenPreferences('draw'), []);
 
@@ -628,7 +633,7 @@ export function Composer(props: {
       // if (supportsScreenCapture)
       //   composerShortcuts.push({ key: 's', ctrl: true, shift: true, action: openScreenCaptureDialog, description: 'Attach Screen Capture' });
     }
-    if (recognitionState.isActive) {
+    if (speechFeatureEnabled && recognitionState.isActive) {
       composerShortcuts.push({ key: 'm', ctrl: true, action: handleFinishMicAndSend, description: 'Mic · Send', disabled: !recognitionState.hasSpeech || sendStarted, endDecoratorIcon: TelegramIcon as any, level: 4 });
       composerShortcuts.push({
         key: ShortcutKey.Esc, action: () => {
@@ -636,7 +641,7 @@ export function Composer(props: {
           toggleRecognition(false);
         }, description: 'Mic · Stop', level: 4,
       });
-    } else if (browserSpeechRecognitionCapability().mayWork)
+    } else if (speechFeatureEnabled && browserSpeechRecognitionCapability().mayWork)
       composerShortcuts.push({
         key: 'm', ctrl: true, action: () => {
           // steal focus from the textarea, in case it has - so that enter cannot work against us
@@ -645,7 +650,7 @@ export function Composer(props: {
         }, description: 'Microphone',
       });
     return composerShortcuts;
-  }, [attachAppendClipboardItems, handleAttachFiles, handleFinishMicAndSend, openWebInputDialog, recognitionState.hasSpeech, recognitionState.isActive, sendStarted, showChatAttachments, toggleRecognition]));
+  }, [attachAppendClipboardItems, handleAttachFiles, handleFinishMicAndSend, openWebInputDialog, recognitionState.hasSpeech, recognitionState.isActive, sendStarted, showChatAttachments, speechFeatureEnabled, toggleRecognition]));
 
 
   // ...
@@ -657,8 +662,8 @@ export function Composer(props: {
   const isDraw = chatExecuteMode === 'generate-image';
 
   const showChatInReferenceTo = !!inReferenceTo?.length;
-  const showChatExtras = isText && !showChatInReferenceTo && !assistantAbortible && composerQuickButton !== 'off';
-  const speechMayWork = browserSpeechRecognitionCapability().mayWork;
+  const showChatExtras = isText && !showChatInReferenceTo && !assistantAbortible && composerQuickButton !== 'off' && (beamFeatureEnabled || callFeatureEnabled);
+  const speechMayWork = speechFeatureEnabled && browserSpeechRecognitionCapability().mayWork;
 
   const sendButtonVariant: VariantProp = (isAppend || (isMobile && isTextBeam)) ? 'outlined' : 'solid';
 
@@ -743,7 +748,7 @@ export function Composer(props: {
               <Box sx={{ flexGrow: 0, display: 'grid', gap: 1, alignSelf: 'flex-start' }}>
 
                 {/* [mobile] Mic button */}
-                {recognitionState.isAvailable && <ButtonMicMemo variant={micVariant} color={micColor === 'danger' ? 'danger' : showTint || micColor} errorMessage={recognitionState.errorMessage} onClick={handleToggleMic} />}
+                {speechFeatureEnabled && recognitionState.isAvailable && <ButtonMicMemo variant={micVariant} color={micColor === 'danger' ? 'danger' : showTint || micColor} errorMessage={recognitionState.errorMessage} onClick={handleToggleMic} />}
 
                 {/* [mobile] Attach file button (in draw with image mode)  */}
                 {showChatAttachments === 'only-images' && <ButtonAttachFilesMemo color={showTint} isMobile onAttachFiles={handleAttachFiles} multiple />}
@@ -867,7 +872,7 @@ export function Composer(props: {
                 </Box>
 
                 {/* Mic & Mic Continuation Buttons */}
-                {recognitionState.isAvailable && (
+                {speechFeatureEnabled && recognitionState.isAvailable && (
                   <Box sx={{
                     position: 'absolute', top: 0, right: 0,
                     zIndex: zIndexComposerOverlayMic + 1,
@@ -888,7 +893,7 @@ export function Composer(props: {
                 )}
 
                 {/* overlay: Mic */}
-                {micIsRunning && (
+                {speechFeatureEnabled && micIsRunning && (
                   <Card
                     ref={micCardRef}
                     color='primary' variant='soft'
@@ -965,9 +970,11 @@ export function Composer(props: {
 
                 {/* [mobile] bottom-corner secondary button */}
                 {isMobile && (showChatExtras
-                    ? (composerQuickButton === 'call' && speechMayWork
+                    ? (callFeatureEnabled && composerQuickButton === 'call' && speechMayWork
                       ? <ButtonCallMemo isMobile disabled={noConversation || noLLM} onClick={handleCallClicked} />
-                      : <ButtonBeamMemo isMobile disabled={noConversation /*|| noLLM*/} color={beamButtonColor} hasContent={!!composeText} onClick={handleSendTextBeamClicked} />)
+                      : beamFeatureEnabled
+                        ? <ButtonBeamMemo isMobile disabled={noConversation /*|| noLLM*/} color={beamButtonColor} hasContent={!!composeText} onClick={handleSendTextBeamClicked} />
+                        : <IconButton disabled sx={{ mr: { xs: 1, md: 2 } }} />)
                     : isDraw
                       ? <ButtonOptionsDraw isMobile onClick={handleDrawOptionsClicked} sx={{ mr: { xs: 1, md: 2 } }} />
                       : <IconButton disabled sx={{ mr: { xs: 1, md: 2 } }} />
@@ -1036,7 +1043,7 @@ export function Composer(props: {
                 </ButtonGroup>
 
                 {/* [desktop] secondary-top buttons */}
-                {isDesktop && showChatExtras && !assistantAbortible && (
+                {isDesktop && beamFeatureEnabled && showChatExtras && !assistantAbortible && (
                   <ButtonBeamMemo
                     color={beamButtonColor}
                     disabled={noConversation /*|| noLLM*/}
@@ -1057,7 +1064,7 @@ export function Composer(props: {
               {isDesktop && <Box sx={{ mt: 'auto', display: 'grid', gap: 1 }}>
 
                 {/* [desktop] Call secondary button - hidden when speech recognition is not available */}
-                {showChatExtras && speechMayWork && <ButtonCallMemo disabled={noConversation || noLLM || assistantAbortible} onClick={handleCallClicked} />}
+                {callFeatureEnabled && showChatExtras && speechMayWork && <ButtonCallMemo disabled={noConversation || noLLM || assistantAbortible} onClick={handleCallClicked} />}
 
                 {/* [desktop] Draw Options secondary button */}
                 {isDraw && <ButtonOptionsDraw onClick={handleDrawOptionsClicked} />}

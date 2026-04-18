@@ -37,6 +37,10 @@
     {
       "action": "/link/share_target",
       "accept": {
+        "application/designmate": [
+          ".agi",
+          ".agi.json"
+        ],
         "application/big-agi": [
           ".agi",
           ".agi.json"
@@ -54,30 +58,5 @@
       "url": "url"
     }
   },
-  "shortcuts": [
-    {
-      "name": "Call",
-      "url": "/call",
-      "description": "Call a Persona",
-      "icons": [
-        {
-          "src": "/icons/icon-call-96x96.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "New Voice Chat",
-      "url": "/?newChat=voiceInput",
-      "description": "Start a new chat with voice input",
-      "icons": [
-        {
-          "src": "/icons/icon-voicechat-96x96.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
-    }
-  ]
+  "shortcuts": []
 }

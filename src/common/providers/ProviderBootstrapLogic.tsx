@@ -9,6 +9,7 @@ import { navigateToNews, ROUTE_APP_CHAT } from '~/common/app.routes';
 import { preloadTiktokenLibrary } from '~/common/tokens/tokens.text';
 import { useClientLoggerInterception } from '~/common/logger/hooks/useClientLoggerInterception';
 import { useNextLoadProgress } from '~/common/components/useNextLoadProgress';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 
 export function ProviderBootstrapLogic(props: { children: React.ReactNode }) {
@@ -25,7 +26,7 @@ export function ProviderBootstrapLogic(props: { children: React.ReactNode }) {
 
   // [boot-up] logic
   const isOnChat = route === ROUTE_APP_CHAT;
-  const doRedirectToNews = isOnChat && shallRedirectToNews();
+  const doRedirectToNews = DesignMateFeatures.news && isOnChat && shallRedirectToNews();
 
 
   // redirect Chat -> News if fresh news

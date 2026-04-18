@@ -7,6 +7,8 @@ import { DMessage, DMessageId, duplicateDMessage } from './chat.message';
 
 /// Conversation
 
+export type DConversationThreadSource = 'local' | 'designmate-server';
+
 export interface DConversation {
   id: DConversationId;                // unique identifier for this conversation
 
@@ -21,6 +23,8 @@ export interface DConversation {
   // temp flags
   _isIncognito?: boolean;             // simple implementation: won't store this conversation (note: side effects should be evaluated, images seem to be gc'd correctly, but not sure if this is really incognito)
   userSymbol?: string;                // TODO: let the user customize this - there may be a mapping elsewhere, but this is small enough and will do for now
+  threadSource?: DConversationThreadSource;
+  serverThreadId?: string;
 
   // TODO: [x Head] - this should be the system purpose of current head of the conversation
   // there should be the concept of the audience of the current head
@@ -64,6 +68,7 @@ export function createDConversation(systemPurposeId?: SystemPurposeId): DConvers
     systemPurposeId: systemPurposeId || defaultSystemPurposeId,
     // @deprecated
     tokenCount: 0,
+    threadSource: 'local',
 
     created: Date.now(),
     updated: Date.now(),
@@ -99,6 +104,7 @@ export function duplicateDConversation(conversation: DConversation, lastMessageI
 
     systemPurposeId: conversation.systemPurposeId,
     tokenCount: conversation.tokenCount,
+    threadSource: 'local',
 
     created: conversation.created,
     updated: Date.now(),

@@ -25,6 +25,7 @@ import { clientUtmSource } from '~/common/util/pwaUtils';
 import { themeZIndexDesktopNav } from '~/common/app.theme';
 import { useHasLLMs } from '~/common/stores/llms/llms.hooks';
 import { useOverlayComponents } from '~/common/layout/overlays/useOverlayComponents';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 import { BringTheLove } from './BringTheLove';
 import { DesktopNavGroupBox, DesktopNavIcon, navItemClasses } from './DesktopNavIcon';
@@ -33,7 +34,7 @@ import { optimaActions, optimaOpenModels, optimaOpenPreferences, optimaToggleDra
 import { scratchClipSupported, useScratchClipVisibility } from '../scratchclip/store-scratchclip';
 
 
-export const bigAgiProUrl = 'https://big-agi.com' + clientUtmSource('upgrade-apps');
+export const designMateWorkspaceUrl = BaseProduct.ProductURL + clientUtmSource('designmate-app');
 
 
 const desktopNavBarSx: SxProps = {
@@ -170,15 +171,15 @@ export function DesktopNav(props: { component: React.ElementType, currentApp?: N
           sx={{ minWidth: 260 }}
         >
 
-          <MenuItem component='a' variant='solid' color='primary' href={bigAgiProUrl} target='_blank' sx={{ minHeight: 40 }}>
-            {/*<ListItemDecorator>New</ListItemDecorator>*/}
-            {/*<ListItemDecorator><RocketLaunchRounded /></ListItemDecorator>*/}
-            Big-AGI Pro
-            {/*✨*/}
-            <ArrowOutwardRoundedIcon sx={{ ml: 'auto' }}/>
-          </MenuItem>
-
-          <ListDivider />
+          {!!BaseProduct.ProductURL && (
+            <>
+              <MenuItem component='a' variant='solid' color='primary' href={designMateWorkspaceUrl} target='_blank' sx={{ minHeight: 40 }}>
+                DesignMate
+                <ArrowOutwardRoundedIcon sx={{ ml: 'auto' }}/>
+              </MenuItem>
+              <ListDivider />
+            </>
+          )}
 
           {/* APPS Section */}
           {overflowApps.length > 0 && (
@@ -225,8 +226,8 @@ export function DesktopNav(props: { component: React.ElementType, currentApp?: N
           <MenuItem component='a' href={BaseProduct.SupportForm()} target='_blank'>
             <ListItemDecorator>🔥</ListItemDecorator>
             <div>
-              Improve Big-AGI
-              <FormHelperText>AI fixes what you report</FormHelperText>
+              Report an issue
+              <FormHelperText>Share a DesignMate problem or request</FormHelperText>
             </div>
             <ArrowOutwardRoundedIcon sx={{ ml: 'auto' }} />
           </MenuItem>
@@ -255,6 +256,9 @@ export function DesktopNav(props: { component: React.ElementType, currentApp?: N
 
   // External link items
   const navExtLinkItems = React.useMemo(() => {
+    if (!DesignMateFeatures.socialLinks)
+      return [];
+
     return navItems.links.map((item, index) =>
       <BringTheLove
         key={'nav-ext-' + item.name}

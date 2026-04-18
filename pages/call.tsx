@@ -1,8 +1,13 @@
 import * as React from 'react';
 
-import { AppCall } from '../src/apps/call/AppCall';
-
+import { navigateToIndex } from '../src/common/app.routes';
 import { withNextJSPerPageLayout } from '~/common/layout/withLayout';
 
 
-export default withNextJSPerPageLayout({ type: 'optima' }, () => <AppCall />);
+export default withNextJSPerPageLayout({ type: 'optima' }, function DesignMateCallDisabledPage() {
+  React.useEffect(() => {
+    void navigateToIndex(true);
+  }, []);
+
+  return null;
+});

@@ -25,6 +25,7 @@ import { ChatBeamIcon } from '~/common/components/icons/ChatBeamIcon';
 import { PhChats } from '~/common/components/icons/phosphor/PhChats';
 import { PhChatsDuotone } from '~/common/components/icons/phosphor/PhChatsDuotone';
 import { hasNoChatLinkItems } from '~/modules/trade/link/store-share-link';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 
 // enable to show all items, for layout development
@@ -103,6 +104,7 @@ export const navItems: {
       hideDrawer: true,
       panelAsMenu: true,
       fullWidth: true,
+      _delete: !DesignMateFeatures.call,
     },
     // {
     //   name: 'Draw',
@@ -188,6 +190,7 @@ export const navItems: {
       hideDrawer: true,
       hideIcon: true,
       isDev: true,
+      _delete: !DesignMateFeatures.beam,
     },
     {
       name: 'Media Library',
@@ -220,6 +223,7 @@ export const navItems: {
       hideBar: true,
       hideDrawer: true,
       hideOnMobile: true,
+      _delete: !DesignMateFeatures.news,
     },
   ],
 
@@ -240,7 +244,7 @@ export const navItems: {
   ],
 
   // External links
-  links: [
+  links: !DesignMateFeatures.socialLinks ? [] : [
     // {
     //   type: 'extLink',
     //   name: 'X',

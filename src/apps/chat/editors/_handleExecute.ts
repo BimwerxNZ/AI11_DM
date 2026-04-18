@@ -4,8 +4,8 @@ import type { DConversationId } from '~/common/stores/chat/chat.conversation';
 import type { DMessage } from '~/common/stores/chat/chat.message';
 import { ConversationHandler } from '~/common/chat-overlay/ConversationHandler';
 import { ConversationsManager } from '~/common/chat-overlay/ConversationsManager';
-import { createTextContentFragment, isContentOrAttachmentFragment, isImageRefPart, isTextContentFragment, isZyncAssetImageReferencePart } from '~/common/stores/chat/chat.fragments';
-import { getConversationSystemPurposeId } from '~/common/stores/chat/store-chats';
+import { createErrorContentFragment, createTextContentFragment, isContentOrAttachmentFragment, isImageRefPart, isTextContentFragment, isZyncAssetImageReferencePart } from '~/common/stores/chat/chat.fragments';
+import { getConversation, getConversationSystemPurposeId, useChatStore } from '~/common/stores/chat/store-chats';
 
 import type { ChatExecuteMode } from '../execute-mode/execute-mode.types';
 import { textToDrawCommand } from '../commands/CommandsDraw';
@@ -14,6 +14,7 @@ import { _handleExecuteCommand, RET_NO_CMD } from './_handleExecuteCommand';
 import { runImageGenerationUpdatingState } from './image-generate';
 import { runPersonaOnConversationHead } from './chat-persona';
 import { runReActUpdatingState } from './react-tangent';
+import { continueDesignMateServerConversation, DesignMateClientResponseError } from '~/modules/designmate/client/designmate.client';
 
 
 export async function _handleExecute(chatExecuteMode: ChatExecuteMode, conversationId: DConversationId, executeCallerNameDebug: string) {
@@ -25,6 +26,53 @@ export async function _handleExecute(chatExecuteMode: ChatExecuteMode, conversat
   const chatLLMId = getChatLLMId();
   const cHandler = ConversationsManager.getHandler(conversationId);
   const initialHistory = cHandler.historyViewHeadOrThrow('handle-execute-' + executeCallerNameDebug) as Readonly<DMessage[]>;
+  const conversation = getConversation(conversationId);
+
+  if (conversation?.threadSource === 'designmate-server') {
+    switch (chatExecuteMode) {
+      case 'append-user':
+        return true;
+
+      case 'generate-content': {
+        const { assistantMessageId } = cHandler.messageAppendAssistantPlaceholder(
+          'DesignMate is responding...',
+          { generator: { mgt: 'named', name: 'DesignMate' } },
+        );
+        const abortController = new AbortController();
+        cHandler.setAbortController(abortController, 'designmate-server-chat');
+
+        try {
+          const result = await continueDesignMateServerConversation(conversationId, abortController.signal);
+          useChatStore.getState().upsertConversation(result.conversation);
+          return true;
+        } catch (error: any) {
+          cHandler.clearAbortController('designmate-server-chat');
+
+          if (abortController.signal.aborted || error?.name === 'AbortError') {
+            cHandler.messagesDelete([assistantMessageId]);
+            return false;
+          }
+
+          const responseJson = error instanceof DesignMateClientResponseError ? error.responseJson : undefined;
+          if (responseJson?.conversation)
+            useChatStore.getState().upsertConversation(responseJson.conversation);
+          else
+            cHandler.messageEdit(assistantMessageId, {
+              fragments: [createErrorContentFragment(error?.message || 'DesignMate could not continue this server-backed thread.')],
+              generator: { mgt: 'named', name: 'issue' },
+            }, true, false);
+
+          return false;
+        } finally {
+          cHandler.clearAbortController('designmate-server-chat');
+        }
+      }
+
+      default:
+        cHandler.messageAppendAssistantText('This DesignMate server-backed conversation only supports standard chat turns in the browser right now.', 'issue');
+        return false;
+    }
+  }
 
   // Update the system message from the active persona to the history
   // NOTE: this does NOT call setMessages anymore (optimization). make sure to:

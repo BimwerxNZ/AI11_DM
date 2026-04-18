@@ -8,6 +8,7 @@ import { AudioGenerator } from '~/common/util/audio/AudioGenerator';
 import { ConversationsManager } from '~/common/chat-overlay/ConversationsManager';
 import { DMessage, MESSAGE_FLAG_NOTIFY_COMPLETE, messageWasInterruptedAtStart } from '~/common/stores/chat/chat.message';
 import { getLabsHighPerformance } from '~/common/stores/store-ux-labs';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 import { PersonaChatMessageSpeak } from './persona/PersonaChatMessageSpeak';
 import { getChatAutoAI, getChatThinkingPolicy, getIsNotificationEnabledForModel } from '../store-app-chat';
@@ -58,7 +59,7 @@ export async function runPersonaOnConversationHead(
   const { autoSpeak, autoSuggestDiagrams, autoSuggestHTMLUI, autoSuggestQuestions, autoTitleChat } = getChatAutoAI();
 
   // AutoSpeak
-  const autoSpeaker: PersonaProcessorInterface | null = autoSpeak !== 'off' ? new PersonaChatMessageSpeak(autoSpeak) : null;
+  const autoSpeaker: PersonaProcessorInterface | null = DesignMateFeatures.speech && autoSpeak !== 'off' ? new PersonaChatMessageSpeak(autoSpeak) : null;
 
   // when an abort controller is set, the UI switches to the "stop" mode
   const abortController = new AbortController();

@@ -3,11 +3,11 @@ import { useShallow } from 'zustand/react/shallow';
 
 import { FormSelectControl, FormSelectOption } from '~/common/components/forms/FormSelectControl';
 import { useUIPreferencesStore } from '~/common/stores/store-ui';
-
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 const QuickOptions: FormSelectOption<'off' | 'call' | 'beam'>[] = [
-  { value: 'beam', label: 'Beam', description: 'Beam it' },
-  { value: 'call', label: 'Call', description: 'Call Persona' },
+  ...(DesignMateFeatures.beam ? [{ value: 'beam', label: 'Beam', description: 'Beam it' } satisfies FormSelectOption<'beam'>] : []),
+  ...(DesignMateFeatures.call ? [{ value: 'call', label: 'Call', description: 'Call Persona' } satisfies FormSelectOption<'call'>] : []),
   { value: 'off', label: 'Off', description: 'Hide' },
 ];
 

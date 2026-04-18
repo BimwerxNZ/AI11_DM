@@ -28,6 +28,7 @@ import { AppChatSettingsUI } from './settings-ui/AppChatSettingsUI';
 import { UxLabsSettings } from './UxLabsSettings';
 import { VoiceInSettings } from './VoiceInSettings';
 import { VoiceOutSettings } from './VoiceOutSettings';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 
 // configuration
@@ -195,6 +196,7 @@ export function SettingsModal(props: {
 
   // external state
   const isMobile = useIsMobile();
+  const effectiveTab = !DesignMateFeatures.speech && props.tab === 'voice' ? 'chat' : (props.tab || 'chat');
 
   // handlers
 
@@ -237,7 +239,7 @@ export function SettingsModal(props: {
 
       <Tabs
         aria-label='Settings tabbed menu'
-        value={props.tab || 'chat'}
+        value={effectiveTab}
         onChange={handleSetTab}
         sx={_styles.tabs}
       >
@@ -247,7 +249,7 @@ export function SettingsModal(props: {
           sx={_styles.tabsList}
         >
           <Tab value='chat' disableIndicator sx={_styles.tabsListTab}>Chat</Tab>
-          <Tab value='voice' disableIndicator sx={_styles.tabsListTab}>Voice</Tab>
+          {DesignMateFeatures.speech && <Tab value='voice' disableIndicator sx={_styles.tabsListTab}>Voice</Tab>}
           <Tab value='draw' disableIndicator sx={_styles.tabsListTab}>Draw</Tab>
           <Tab value='tools' disableIndicator sx={_styles.tabsListTab}>Tools</Tab>
         </TabList>
@@ -269,16 +271,18 @@ export function SettingsModal(props: {
           </Topics>
         </TabPanel>
 
-        <TabPanel value='voice' color='primary' variant='outlined' sx={_styles.tabPanel}>
-          <Topics>
-            <Topic icon={/*'🎙️'*/ <MicIcon />} title='Microphone'>
-              <VoiceInSettings isMobile={isMobile} />
-            </Topic>
-            <Topic icon={/*'📢'*/ <PhVoice />} title={'Speech'/*<>Voices <GoodBadge badge='New' /></>*/}>
-              <VoiceOutSettings isMobile={isMobile} />
-            </Topic>
-          </Topics>
-        </TabPanel>
+        {DesignMateFeatures.speech && (
+          <TabPanel value='voice' color='primary' variant='outlined' sx={_styles.tabPanel}>
+            <Topics>
+              <Topic icon={/*'🎙️'*/ <MicIcon />} title='Microphone'>
+                <VoiceInSettings isMobile={isMobile} />
+              </Topic>
+              <Topic icon={/*'📢'*/ <PhVoice />} title={'Speech'/*<>Voices <GoodBadge badge='New' /></>*/}>
+                <VoiceOutSettings isMobile={isMobile} />
+              </Topic>
+            </Topics>
+          </TabPanel>
+        )}
 
         <TabPanel value='draw' color='primary' variant='outlined' sx={_styles.tabPanel}>
           <Topics>

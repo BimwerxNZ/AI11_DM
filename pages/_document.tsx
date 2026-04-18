@@ -6,6 +6,7 @@ import InitColorSchemeScript from '@mui/joy/InitColorSchemeScript';
 
 import { Brand } from '~/common/app.config';
 import { createEmotionCache } from '~/common/app.theme';
+import { DesignMateBrand } from '~/modules/designmate/config';
 
 
 interface MyDocumentProps extends DocumentProps {
@@ -43,24 +44,23 @@ export default function MyDocument({ emotionStyleTags }: MyDocumentProps) {
         <meta property='twitter:title' content={Brand.Title.Common} />
         <meta property='twitter:description' content={Brand.Meta.Description} />
         {Brand.URIs.CardImage && <meta property='twitter:image' content={Brand.URIs.CardImage} />}
-        <meta name='twitter:site' content={Brand.Meta.TwitterSite} />
-        <meta name='twitter:creator' content='@enricoros' />
+        {!!Brand.Meta.TwitterSite && <meta name='twitter:site' content={Brand.Meta.TwitterSite} />}
         <link rel='canonical' href={Brand.URIs.Home} />
 
         {/* Author & Structured Data */}
-        <meta name='author' content='Enrico Ros' />
-        <link rel='author' href='https://www.enricoros.com' />
+        <meta name='author' content={DesignMateBrand.authorName} />
+        <link rel='author' href={DesignMateBrand.authorUrl} />
         <script type='application/ld+json' dangerouslySetInnerHTML={{ __html: JSON.stringify({
           '@context': 'https://schema.org',
           '@type': 'SoftwareApplication',
-          'name': 'Big-AGI',
-          'url': 'https://big-agi.com',
+          'name': DesignMateBrand.titleBase,
+          'url': Brand.URIs.Home,
           'applicationCategory': 'ProductivityApplication',
           'operatingSystem': 'All, Web',
           'description': Brand.Meta.Description,
-          'sameAs': ['https://github.com/enricoros/big-agi', 'https://discord.gg/MkH4qj2Jp9',],
-          'author': { '@type': 'Person', 'name': 'Enrico Ros', 'url': 'https://www.enricoros.com' },
-          'publisher': { '@type': 'Organization', 'name': 'Token Fabrics LLC', 'url': 'https://www.tokenfabrics.com' },
+          'sameAs': [DesignMateBrand.openRepoUrl].filter(Boolean),
+          'author': { '@type': 'Organization', 'name': DesignMateBrand.authorName, 'url': DesignMateBrand.authorUrl },
+          'publisher': { '@type': 'Organization', 'name': DesignMateBrand.publisherName, 'url': DesignMateBrand.publisherUrl },
         }) }} />
 
         {/* Style Sheets (injected and server-side) */}
@@ -119,7 +119,7 @@ MyDocument.getInitialProps = async (ctx: DocumentContext) => {
   const initialProps = await Document.getInitialProps(ctx);
 
   // Inject the comment before the HTML tag
-  initialProps.html = `<!-- ❤ Built with Big-AGI -->\n${initialProps.html}`;
+  initialProps.html = `<!-- Built with DesignMate -->\n${initialProps.html}`;
 
   // This is important. It prevents Emotion to render invalid HTML.
   // See https://github.com/mui/material-ui/issues/26561#issuecomment-855286153

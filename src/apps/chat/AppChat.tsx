@@ -22,7 +22,7 @@ import { PanelResizeInset } from '~/common/components/PanelResizeInset';
 import { Release } from '~/common/app.release';
 import { ScrollToBottom } from '~/common/scroll-to-bottom/ScrollToBottom';
 import { ScrollToBottomButton } from '~/common/scroll-to-bottom/ScrollToBottomButton';
-import { ShortcutKey, useGlobalShortcuts } from '~/common/components/shortcuts/useGlobalShortcuts';
+import { ShortcutKey, type ShortcutObject, useGlobalShortcuts } from '~/common/components/shortcuts/useGlobalShortcuts';
 import { WorkspaceIdProvider } from '~/common/stores/workspace/WorkspaceIdProvider';
 import { addSnackbar, removeSnackbar } from '~/common/components/snackbar/useSnackbarsStore';
 import { createDMessageFromFragments, createDMessagePlaceholderIncomplete, DMessageMetadata, duplicateDMessageMetadata } from '~/common/stores/chat/chat.message';
@@ -49,6 +49,8 @@ import { Composer } from './components/composer/Composer';
 import { PaneTitleOverlay } from './components/PaneTitleOverlay';
 import { useComposerAutoHide } from './components/composer/useComposerAutoHide';
 import { usePanesManager } from './components/panes/store-panes-manager';
+import { DesignMateFeatures } from '~/modules/designmate/config';
+import { useDesignMateServerThreadsSync } from '~/modules/designmate/client/useDesignMateServerThreadsSync';
 
 import type { ChatExecuteMode } from './execute-mode/execute-mode.types';
 
@@ -122,6 +124,7 @@ const TradeModalLazy = React.lazy(() => import('~/modules/trade/TradeModal').the
 
 
 export function AppChat() {
+  useDesignMateServerThreadsSync();
 
   // state
   const { showPromisedOverlay } = useOverlayComponents();
@@ -585,7 +588,7 @@ export function AppChat() {
   useGlobalShortcuts('AppChat', React.useMemo(() => [
     // focused conversation
     { key: 'z', ctrl: true, shift: true, disabled: isFocusedChatEmpty, action: handleMessageRegenerateLastInFocusedPane, description: 'Retry' },
-    { key: 'b', ctrl: true, shift: true, disabled: isFocusedChatEmpty, action: handleMessageBeamLastInFocusedPane, description: 'Beam Edit' },
+    ...(DesignMateFeatures.beam ? [{ key: 'b', ctrl: true, shift: true, disabled: isFocusedChatEmpty, action: handleMessageBeamLastInFocusedPane, description: 'Beam Edit' } satisfies ShortcutObject] : []),
     { key: 'o', ctrl: true, action: handleConversationsImportFormFilePicker },
     { key: 's', ctrl: true, action: () => handleFileSaveConversation(focusedPaneConversationId) },
     { key: 'n', ctrl: true, shift: true, action: () => handleConversationNewInFocusedPane(false, false) },
@@ -759,7 +762,7 @@ export function AppChat() {
           isMulticast={!isMultiConversationId ? null : isComposerMulticast}
           isDeveloperMode={isFocusedChatDeveloper}
           onAction={handleComposerAction}
-          onConversationBeamEdit={handleMessageBeamLastInFocusedPane}
+          onConversationBeamEdit={DesignMateFeatures.beam ? handleMessageBeamLastInFocusedPane : async () => undefined}
           onConversationsImportFromFiles={handleConversationsImportFromFiles}
           onTextImagine={handleImagineFromText}
           setIsMulticast={setIsComposerMulticast}

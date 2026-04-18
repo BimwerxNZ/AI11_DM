@@ -6,6 +6,7 @@ import { Release } from '~/common/app.release';
 import { estimatePersistentStorageOrThrow, requestPersistentStorageSafe } from '~/common/util/storageUtils';
 import { gcAttachmentDBlobs } from '~/common/attachment-drafts/attachment.dblobs';
 import { isBrowser } from '~/common/util/pwaUtils';
+import { DesignMateFeatures } from '~/modules/designmate/config';
 
 import { reconfigureBackendModels } from './reconfigureBackendModels';
 
@@ -55,6 +56,9 @@ if (isBrowser)
 /// News Navigation
 
 export function shallRedirectToNews() {
+  if (!DesignMateFeatures.news)
+    return false;
+
   const { lastSeenNewsVersion, usageCount } = useLogicSherpaStore.getState();
 
   // first time user - ignore the news up to the next refresh
@@ -69,7 +73,7 @@ export function shallRedirectToNews() {
 }
 
 export function markNewsAsSeen() {
-  useLogicSherpaStore.setState({ lastSeenNewsVersion: Release.Monotonics.NewsVersion });
+  useLogicSherpaStore.setState({ lastSeenNewsVersion: Release.Monotonics.NewsVersion || 0 });
 }
 
 

@@ -1,15 +1,13 @@
 import * as React from 'react';
 
-import { AppNews } from '../src/apps/news/AppNews';
-
-import { markNewsAsSeen } from '~/common/logic/store-logic-sherpa';
+import { navigateToIndex } from '../src/common/app.routes';
 import { withNextJSPerPageLayout } from '~/common/layout/withLayout';
 
 
-export default withNextJSPerPageLayout({ type: 'optima', suspendAutoModelsSetup: true }, () => {
+export default withNextJSPerPageLayout({ type: 'optima', suspendAutoModelsSetup: true }, function DesignMateNewsDisabledPage() {
+  React.useEffect(() => {
+    void navigateToIndex(true);
+  }, []);
 
-  // 'touch' the last seen news version
-  React.useEffect(() => markNewsAsSeen(), []);
-
-  return <AppNews />;
+  return null;
 });
