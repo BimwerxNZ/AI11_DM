@@ -227,6 +227,7 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
 
   const isCalcpadCode = heuristicIsCalcpadCode(blockTitle, code);
   const renderCalcpad = isCalcpadCode && showCalcpadPreview && !!calcpadHtml;
+  const shouldStretchRenderedPreview = renderHTML || renderCalcpad;
 
   const renderSyntaxHighlight = !renderHTML && !renderMermaid && !renderPlantUML && !renderSVG && !renderCalcpad;
   const cannotRenderLineNumbers = !renderSyntaxHighlight || showSoftWrap;
@@ -333,6 +334,10 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
     // layout
     display: 'flex',
     flexDirection: 'column',
+    width: shouldStretchRenderedPreview ? '100%' : undefined,
+    maxWidth: shouldStretchRenderedPreview ? '100%' : undefined,
+    alignSelf: shouldStretchRenderedPreview ? 'stretch' : undefined,
+    minWidth: shouldStretchRenderedPreview ? 0 : undefined,
     // justifyContent: (renderMermaid || renderPlantUML) ? 'center' : undefined,
 
     // fix for SVG diagrams over dark mode: https://github.com/enricoros/big-AGI/issues/520
@@ -344,7 +349,7 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
     // patch the min height if we have the second row
     // ...(hasExternalButtons ? { minHeight: '5.25rem' } : {}),
 
-  }), [isBorderless, isRenderingDiagram, props.sx, showSoftWrap]);
+  }), [isBorderless, isRenderingDiagram, props.sx, shouldStretchRenderedPreview, showSoftWrap]);
 
 
   return (
@@ -377,7 +382,7 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
             chars in a non-proper way.
             Since this damages the 'fullscreen' operation, we restore it somehow.
         */}
-        <Box component='span' sx={!isFullscreen ? undefined : { flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Box component='span' sx={(!isFullscreen && !shouldStretchRenderedPreview) ? undefined : { flex: 1, display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0 }}>
           {/* Renders HTML, or inline SVG, inline plantUML rendered, or highlighted code */}
           {renderHTML ? <RenderCodeHtmlIFrame key={htmlReloadKey} htmlCode={code} isFullscreen={isFullscreen} />
             : renderCalcpad ? <RenderCodeHtmlIFrame key={calcpadReloadKey} htmlCode={calcpadHtml} isFullscreen={isFullscreen} />
