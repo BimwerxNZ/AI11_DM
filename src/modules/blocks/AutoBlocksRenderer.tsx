@@ -1,5 +1,7 @@
 import * as React from 'react';
 
+import { Box } from '@mui/joy';
+
 import type { ContentScaling } from '~/common/app.theme';
 import type { DMessageRole } from '~/common/stores/chat/chat.message';
 
@@ -157,33 +159,35 @@ export function AutoBlocksRenderer(props: {
             let disableEnhancedRender = disableBecauseInProgress || disableBecauseTooShort;
             let enhancedStartCollapsed = false;
 
-            return (props.codeRenderVariant === 'enhanced' && !disableEnhancedRender) ? (
-              <EnhancedRenderCode
-                key={'code-bk-' + index}
-                semiStableId={bkInput.bkId}
-                code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial || isTextCollapsed}
-                contentScaling={props.contentScaling}
-                fitScreen={props.fitScreen}
-                isMobile={props.isMobile}
-                initialShowHTML={props.showUnsafeHtmlCode}
-                initialIsCollapsed={enhancedStartCollapsed}
-                noCopyButton={props.blocksProcessor === 'diagram' || isTextCollapsed}
-                optimizeLightweight={optimizeMemoBeforeLastBlock}
-                onReplaceInCode={(!setText || isTextCollapsed) ? undefined : handleReplaceCode}
-                codeSx={scaledCodeSx}
-              />
-            ) : (
-              <RenderCodeMemoOrNot
-                key={'code-bk-' + index}
-                semiStableId={bkInput.bkId}
-                code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial || isTextCollapsed}
-                fitScreen={props.fitScreen}
-                initialShowHTML={props.showUnsafeHtmlCode /* && !bkInput.isPartial NOTE: with this, it would be only auto-rendered at the end, preventing broken renders */}
-                noCopyButton={props.blocksProcessor === 'diagram' || isTextCollapsed}
-                optimizeLightweight={optimizeMemoBeforeLastBlock}
-                onReplaceInCode={(!setText || isTextCollapsed) ? undefined : handleReplaceCode}
-                sx={scaledCodeSx}
-              />
+            return (
+              <Box key={'code-bk-' + index} sx={{ width: '100%', minWidth: 0, maxWidth: '100%', display: 'block' }}>
+                {(props.codeRenderVariant === 'enhanced' && !disableEnhancedRender) ? (
+                  <EnhancedRenderCode
+                    semiStableId={bkInput.bkId}
+                    code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial || isTextCollapsed}
+                    contentScaling={props.contentScaling}
+                    fitScreen={props.fitScreen}
+                    isMobile={props.isMobile}
+                    initialShowHTML={props.showUnsafeHtmlCode}
+                    initialIsCollapsed={enhancedStartCollapsed}
+                    noCopyButton={props.blocksProcessor === 'diagram' || isTextCollapsed}
+                    optimizeLightweight={optimizeMemoBeforeLastBlock}
+                    onReplaceInCode={(!setText || isTextCollapsed) ? undefined : handleReplaceCode}
+                    codeSx={scaledCodeSx}
+                  />
+                ) : (
+                  <RenderCodeMemoOrNot
+                    semiStableId={bkInput.bkId}
+                    code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial || isTextCollapsed}
+                    fitScreen={props.fitScreen}
+                    initialShowHTML={props.showUnsafeHtmlCode /* && !bkInput.isPartial NOTE: with this, it would be only auto-rendered at the end, preventing broken renders */}
+                    noCopyButton={props.blocksProcessor === 'diagram' || isTextCollapsed}
+                    optimizeLightweight={optimizeMemoBeforeLastBlock}
+                    onReplaceInCode={(!setText || isTextCollapsed) ? undefined : handleReplaceCode}
+                    sx={scaledCodeSx}
+                  />
+                )}
+              </Box>
             );
 
           case 'dang-html-bk':

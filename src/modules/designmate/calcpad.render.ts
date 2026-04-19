@@ -166,13 +166,18 @@ function injectCalcpadPreviewStyle(html: string): string {
   if (html.includes('id="designmate-calcpad-preview"') || html.includes("id='designmate-calcpad-preview'"))
     return html;
 
+  const previewStyleTag = `<style id="designmate-calcpad-preview">${CALCPAD_PREVIEW_STYLE}</style>`;
+
+  if (/<\/head>/i.test(html))
+    return html.replace(/<\/head>/i, `${previewStyleTag}</head>`);
+
   if (/<head(\s[^>]*)?>/i.test(html))
-    return html.replace(/<head(\s[^>]*)?>/i, match => `${match}<style id="designmate-calcpad-preview">${CALCPAD_PREVIEW_STYLE}</style>`);
+    return html.replace(/<head(\s[^>]*)?>/i, match => `${match}${previewStyleTag}`);
 
   if (/<html[\s>]/i.test(html))
-    return html.replace(/<html(\s[^>]*)?>/i, match => `${match}<head><style id="designmate-calcpad-preview">${CALCPAD_PREVIEW_STYLE}</style></head>`);
+    return html.replace(/<html(\s[^>]*)?>/i, match => `${match}<head>${previewStyleTag}</head>`);
 
-  return `<!doctype html><html><head><style id="designmate-calcpad-preview">${CALCPAD_PREVIEW_STYLE}</style></head><body>${html}</body></html>`;
+  return `<!doctype html><html><head>${previewStyleTag}</head><body>${html}</body></html>`;
 }
 
 
