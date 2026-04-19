@@ -9,8 +9,6 @@ import { getDomainModelIdOrThrow } from '~/common/stores/llms/store-llms';
 
 
 const CALCPAD_DESKTOP_HOST_NAME = 'designMateDesktopHost';
-const DEFAULT_CALCPAD_REPAIR_ATTEMPTS = 3;
-
 const CALCPAD_REPAIR_TOOL = {
   name: 'repair_calcpad_code',
   description: 'Repairs DesignPad source code so it renders without errors while preserving the engineering intent.',
@@ -104,50 +102,22 @@ export function canUseDesktopCalcpadRender(): boolean {
 }
 
 
-export async function renderCalcpadCodeWithAutoFix(initialCode: string, maxRepairAttempts: number = DEFAULT_CALCPAD_REPAIR_ATTEMPTS): Promise<DesignMateCalcpadAutoRenderResult> {
-  let workingCode = initialCode;
+export async function renderCalcpadCodeWithAutoFix(initialCode: string): Promise<DesignMateCalcpadAutoRenderResult> {
+  const workingCode = initialCode;
   if (!workingCode.trim())
     throw new Error('No DesignPad code was available to render.');
-
-  let repairSummary: string | null = null;
-
-  for (let repairCount = 0; repairCount <= maxRepairAttempts; repairCount++) {
-    const renderResult = await requestDesktopCalcpadRender(workingCode);
-    if (renderResult.ok) {
-      const syntaxErrors = extractDesignPadSyntaxErrorsFromHtml(renderResult.html);
-      if (syntaxErrors.length && repairCount < maxRepairAttempts) {
-        const repair = await repairDesignPadCodeFromDiagnosticsOrThrow(workingCode, syntaxErrors.join('\n'), repairCount);
-        const nextCode = repair.correctedCode.trim();
-        if (!nextCode || nextCode === workingCode.trim())
-          throw new Error(syntaxErrors.join('\n'));
-
-        workingCode = nextCode;
-        repairSummary = repair.repairSummary;
-        continue;
-      }
-
-      return {
-        html: prepareCalcpadPreviewHtml(renderResult.html, renderResult.baseUrl ?? null),
-        finalCode: workingCode,
-        repairCount,
-        repairSummary,
-      };
-    }
-
+  const renderResult = await requestDesktopCalcpadRender(workingCode);
+  if (!renderResult.ok) {
     const renderError = renderResult.error?.trim() || 'DesignPad render failed.';
-    if (renderResult.code !== 'calcpad_compile_error' || repairCount >= maxRepairAttempts)
-      throw new Error(renderResult.details ? `${renderError}\n${renderResult.details}` : renderError);
-
-    const repair = await repairDesignPadCodeFromDiagnosticsOrThrow(workingCode, renderError, repairCount);
-    const nextCode = repair.correctedCode.trim();
-    if (!nextCode || nextCode === workingCode.trim())
-      throw new Error(renderError);
-
-    workingCode = nextCode;
-    repairSummary = repair.repairSummary;
+    throw new Error(renderResult.details ? `${renderError}\n${renderResult.details}` : renderError);
   }
 
-  throw new Error('DesignPad render failed after repeated repair attempts.');
+  return {
+    html: prepareCalcpadPreviewHtml(renderResult.html, renderResult.baseUrl ?? null),
+    finalCode: workingCode,
+    repairCount: 0,
+    repairSummary: null,
+  };
 }
 
 

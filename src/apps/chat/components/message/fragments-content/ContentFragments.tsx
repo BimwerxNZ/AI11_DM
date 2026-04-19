@@ -26,6 +26,10 @@ import { humanReadableFunctionName } from './BlockPartToolInvocation.utils';
 
 const _editLayoutSx: SxProps = {
   display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  justifyItems: 'stretch',
+  width: '100%',
+  minWidth: 0,
   gap: 1.5,     // see why we give more space on ChatMessage
 
   // horizontal separator between messages (second part+ and before)
@@ -38,13 +42,12 @@ const _editLayoutSx: SxProps = {
 const _startLayoutSx: SxProps = {
   ..._editLayoutSx,
   justifyContent: 'flex-start',
-  width: '100%',
-  minWidth: 0,
 } as const;
 
 const _endLayoutSx: SxProps = {
   ..._editLayoutSx,
   justifyContent: 'flex-end',
+  justifyItems: 'end',
 } as const;
 
 

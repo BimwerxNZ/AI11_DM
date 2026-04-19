@@ -261,15 +261,6 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
       setCalcpadHtml(preview.html);
       setShowCalcpadPreview(true);
       setCalcpadReloadKey(key => key + 1);
-
-      if (preview.repairCount > 0) {
-        addSnackbar({
-          key: `calcpad-repair-${props.semiStableId || blockTitle || 'code'}`,
-          message: preview.repairSummary || `DesignPad repaired and rendered after ${preview.repairCount} fix ${preview.repairCount === 1 ? 'pass' : 'passes'}.`,
-          type: 'success',
-          overrides: { autoHideDuration: 6000 },
-        });
-      }
     } catch (error: any) {
       addSnackbar({
         key: `calcpad-render-${props.semiStableId || blockTitle || 'code'}`,
