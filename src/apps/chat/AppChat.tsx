@@ -50,6 +50,7 @@ import { PaneTitleOverlay } from './components/PaneTitleOverlay';
 import { useComposerAutoHide } from './components/composer/useComposerAutoHide';
 import { usePanesManager } from './components/panes/store-panes-manager';
 import { DesignMateFeatures } from '~/modules/designmate/config';
+import { buildDesignMateGenFEABridgeFragments, type DesignMateGenFEASendError, type DesignMateGenFEASendPayload, type DesignMateGenFEASendSuccess } from '~/modules/designmate/genfea.bridge';
 import { useDesignMateServerThreadsSync } from '~/modules/designmate/client/useDesignMateServerThreadsSync';
 
 import type { ChatExecuteMode } from './execute-mode/execute-mode.types';
@@ -240,20 +241,145 @@ export function AppChat() {
 
   // Execution
 
+  const handleExecuteOutcome = React.useCallback((outcome: Awaited<ReturnType<typeof _handleExecute>>): DesignMateGenFEASendError | null => {
+    if (outcome === true)
+      return null;
+
+    if (outcome === 'err-no-chatllm') {
+      optimaOpenModels();
+      return {
+        ok: false,
+        code: outcome,
+        message: 'DesignMate needs a configured chat model before GenFEA can send into this chat.',
+      };
+    }
+
+    if (outcome === 'err-t2i-unconfigured') {
+      optimaOpenPreferences('draw');
+      return {
+        ok: false,
+        code: outcome,
+        message: 'DesignMate image generation is not configured right now.',
+      };
+    }
+
+    if (outcome === 'err-no-persona') {
+      addSnackbar({ key: 'chat-no-persona', message: 'No persona selected.', type: 'issue', overrides: { autoHideDuration: 4000 } });
+      return {
+        ok: false,
+        code: outcome,
+        message: 'Select a DesignMate persona for the active chat before sending from GenFEA.',
+      };
+    }
+
+    if (outcome === 'err-no-conversation') {
+      addSnackbar({ key: 'chat-no-conversation', message: 'No active conversation.', type: 'issue' });
+      return {
+        ok: false,
+        code: outcome,
+        message: 'Open or focus a DesignMate chat before sending from GenFEA.',
+      };
+    }
+
+    if (outcome === 'err-no-last-message') {
+      addSnackbar({ key: 'chat-no-conversation', message: 'No conversation history.', type: 'issue' });
+      return {
+        ok: false,
+        code: outcome,
+        message: 'DesignMate could not stage the GenFEA message in the active chat.',
+      };
+    }
+
+    return {
+      ok: false,
+      code: typeof outcome === 'string' ? outcome : 'designmate_send_failed',
+      message: 'DesignMate could not continue the active chat for this GenFEA request.',
+    };
+  }, []);
+
   const handleExecuteAndOutcome = React.useCallback(async (chatExecuteMode: ChatExecuteMode, conversationId: DConversationId, callerNameDebug: string) => {
     const outcome = await _handleExecute(chatExecuteMode, conversationId, callerNameDebug);
-    if (outcome === 'err-no-chatllm')
-      optimaOpenModels();
-    else if (outcome === 'err-t2i-unconfigured')
-      optimaOpenPreferences('draw');
-    else if (outcome === 'err-no-persona')
-      addSnackbar({ key: 'chat-no-persona', message: 'No persona selected.', type: 'issue', overrides: { autoHideDuration: 4000 } });
-    else if (outcome === 'err-no-conversation')
-      addSnackbar({ key: 'chat-no-conversation', message: 'No active conversation.', type: 'issue' });
-    else if (outcome === 'err-no-last-message')
-      addSnackbar({ key: 'chat-no-conversation', message: 'No conversation history.', type: 'issue' });
-    return outcome === true;
-  }, []);
+    return !handleExecuteOutcome(outcome);
+  }, [handleExecuteOutcome]);
+
+  const handleDesignMateGenFEASend = React.useCallback(async (payload: DesignMateGenFEASendPayload): Promise<DesignMateGenFEASendSuccess | DesignMateGenFEASendError> => {
+    const conversationId = focusedPaneConversationId;
+    if (!conversationId) {
+      return {
+        ok: false,
+        code: 'designmate_no_active_conversation',
+        message: 'Focus a DesignMate chat before sending from GenFEA.',
+      };
+    }
+
+    const conversation = getConversation(conversationId);
+    if (!conversation) {
+      return {
+        ok: false,
+        code: 'designmate_missing_conversation',
+        message: 'The active DesignMate chat is no longer available.',
+      };
+    }
+
+    if (conversation.threadSource !== 'local') {
+      return {
+        ok: false,
+        code: 'designmate_non_local_conversation',
+        message: 'GenFEA can only send into a local DesignMate chat. Open a normal chat tab and try again.',
+      };
+    }
+
+    try {
+      const fragments = await buildDesignMateGenFEABridgeFragments(payload);
+      const latestConversation = getConversation(conversationId);
+      if (!latestConversation || latestConversation.threadSource !== 'local') {
+        return {
+          ok: false,
+          code: 'designmate_conversation_changed',
+          message: 'The active DesignMate chat changed before GenFEA could send the message.',
+        };
+      }
+
+      const userMessage = createDMessageFromFragments('user', fragments);
+      ConversationsManager.getHandler(conversationId).messageAppend(userMessage);
+
+      const outcome = await _handleExecute('generate-content', conversationId, 'designmate-genfea-bridge');
+      const bridgeError = handleExecuteOutcome(outcome);
+      if (bridgeError)
+        return bridgeError;
+
+      return {
+        ok: true,
+        conversationId,
+        userMessageId: userMessage.id,
+      };
+    } catch (error: any) {
+      return {
+        ok: false,
+        code: 'designmate_payload_invalid',
+        message: error?.message || 'DesignMate could not prepare the GenFEA payload.',
+      };
+    }
+  }, [focusedPaneConversationId, handleExecuteOutcome]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined')
+      return;
+
+    window.DesignMateGenFEA = {
+      getStatus: () => ({
+        ready: true,
+        activeConversationId: focusedPaneConversationId ?? null,
+        activePersonaId: focusedPaneConversationId ? getConversation(focusedPaneConversationId)?.systemPurposeId ?? null : null,
+      }),
+      send: handleDesignMateGenFEASend,
+    };
+
+    return () => {
+      if (window.DesignMateGenFEA?.send === handleDesignMateGenFEASend)
+        delete window.DesignMateGenFEA;
+    };
+  }, [focusedPaneConversationId, handleDesignMateGenFEASend]);
 
   const handleComposerAction = React.useCallback((conversationId: DConversationId, chatExecuteMode: ChatExecuteMode, fragments: (DMessageContentFragment | DMessageAttachmentFragment)[], metadata?: DMessageMetadata): boolean => {
 
