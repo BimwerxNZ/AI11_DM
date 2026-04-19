@@ -51,6 +51,7 @@ export function ChatMessageList(props: {
   onConversationExecuteHistory: (conversationId: DConversationId) => Promise<void>,
   onConversationNew: (forceNoRecycle: boolean, isIncognito: boolean) => void,
   onTextDiagram: (diagramConfig: DiagramConfig | null) => void,
+  onTextUI: (conversationId: DConversationId, messageId: DMessageId) => Promise<void>,
   onTextImagine: (conversationId: DConversationId, selectedText: string) => Promise<void>,
   setIsMessageSelectionMode: (isMessageSelectionMode: boolean) => void,
   sx?: SxProps,
@@ -78,7 +79,7 @@ export function ChatMessageList(props: {
   })));
 
   // derived state
-  const { conversationHandler, conversationId, capabilityHasT2I, onConversationBranch, onConversationExecuteHistory, onTextDiagram, onTextImagine } = props;
+  const { conversationHandler, conversationId, capabilityHasT2I, onConversationBranch, onConversationExecuteHistory, onTextDiagram, onTextImagine, onTextUI } = props;
   const composerCanAddInReferenceTo = _composerInReferenceToCount < 5;
   const composerHasInReferenceto = _composerInReferenceToCount > 0;
 
@@ -202,6 +203,11 @@ export function ChatMessageList(props: {
   const handleTextDiagram = React.useCallback(async (messageId: DMessageId, text: string) => {
     conversationId && onTextDiagram({ conversationId: conversationId, messageId, text });
   }, [conversationId, onTextDiagram]);
+
+  const handleTextUI = React.useCallback(async (messageId: DMessageId) => {
+    if (conversationId)
+      await onTextUI(conversationId, messageId);
+  }, [conversationId, onTextUI]);
 
   const handleTextImagine = React.useCallback(async (text: string) => {
     if (!capabilityHasT2I)
@@ -383,6 +389,7 @@ export function ChatMessageList(props: {
               onMessageToggleUserFlag={handleMessageToggleUserFlag}
               onMessageTruncate={handleMessageTruncate}
               onTextDiagram={handleTextDiagram}
+              onTextUI={message.role === 'assistant' ? handleTextUI : undefined}
               onTextImagine={capabilityHasT2I ? handleTextImagine : undefined}
               onTextSpeak={DesignMateFeatures.speech ? handleTextSpeak : undefined}
             />

@@ -10,6 +10,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ContentCutIcon from '@mui/icons-material/ContentCut';
+import DashboardCustomizeOutlinedIcon from '@mui/icons-material/DashboardCustomizeOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DifferenceIcon from '@mui/icons-material/Difference';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -169,6 +170,7 @@ export function ChatMessage(props: {
   onMessageToggleUserFlag?: (messageId: string, flag: DMessageUserFlag, maxPerConversation?: number) => void,
   onMessageTruncate?: (messageId: string) => void,
   onTextDiagram?: (messageId: string, text: string) => Promise<void>,
+  onTextUI?: (messageId: string) => Promise<void>,
   onTextImagine?: (text: string) => Promise<void>,
   onTextSpeak?: (text: string) => Promise<void>,
   sx?: SxProps,
@@ -233,6 +235,7 @@ export function ChatMessage(props: {
   const textSubject = selText ? selText : fragmentFlattenedText;
   const isSpecialT2I = textSubject.startsWith('/draw ') || textSubject.startsWith('/imagine ') || textSubject.startsWith('/img ');
   const couldDiagram = textSubject.length >= 100 && !isSpecialT2I;
+  const couldUI = fromAssistant && !messagePendingIncomplete && fragmentFlattenedText.trim().length >= BUBBLE_MIN_TEXT_LENGTH && !['<html', '<HTML', '<Html'].some(s => fragmentFlattenedText.includes(s));
   const couldImagine = textSubject.length >= 3 && !isSpecialT2I;
   const couldSpeak = couldImagine;
 
@@ -410,6 +413,16 @@ export function ChatMessage(props: {
     e.preventDefault();
     if (props.onTextImagine) {
       await props.onTextImagine(textSubject.trim());
+      handleCloseOpsMenu();
+      closeContextMenu();
+      closeBubble();
+    }
+  };
+
+  const handleOpsUI = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (props.onTextUI) {
+      await props.onTextUI(messageId);
       handleCloseOpsMenu();
       closeContextMenu();
       closeBubble();
@@ -1057,11 +1070,17 @@ export function ChatMessage(props: {
             </MenuItem>
           )}
           {/* Diagram / Draw / Speak */}
-          {!!props.onTextDiagram && <ListDivider />}
+          {(!!props.onTextDiagram || !!props.onTextUI) && <ListDivider />}
           {!!props.onTextDiagram && (
             <MenuItem onClick={handleOpsDiagram} disabled={!couldDiagram}>
               <ListItemDecorator><PhTreeStructure /></ListItemDecorator>
               Auto-Diagram ...
+            </MenuItem>
+          )}
+          {!!props.onTextUI && (
+            <MenuItem onClick={handleOpsUI} disabled={!couldUI}>
+              <ListItemDecorator><DashboardCustomizeOutlinedIcon /></ListItemDecorator>
+              Auto-UI
             </MenuItem>
           )}
           {!!props.onTextImagine && (
@@ -1193,6 +1212,11 @@ export function ChatMessage(props: {
                   <PhTreeStructure sx={{ color: couldDiagram ? 'primary' : 'neutral.plainDisabledColor' }} />
                 </IconButton>
               </Tooltip>}
+              {!!props.onTextUI && <Tooltip disableInteractive arrow placement='top' title={couldUI ? 'Auto-UI' : 'Auto-UI unavailable for this response'}>
+                <IconButton color='success' onClick={couldUI ? handleOpsUI : undefined}>
+                  <DashboardCustomizeOutlinedIcon sx={{ color: couldUI ? 'primary' : 'neutral.plainDisabledColor' }} />
+                </IconButton>
+              </Tooltip>}
               {!!props.onTextImagine && <Tooltip disableInteractive arrow placement='top' title='Auto-Draw'>
                 <IconButton color='success' onClick={handleOpsImagine} disabled={!couldImagine || props.isImagining}>
                   {!props.isImagining ? <FormatPaintOutlinedIcon /> : <CircularProgress sx={{ '--CircularProgress-size': '16px' }} />}
@@ -1203,7 +1227,7 @@ export function ChatMessage(props: {
                   {!props.isSpeaking ? <PhVoice /> : <CircularProgress sx={{ '--CircularProgress-size': '16px' }} />}
                 </IconButton>
               </Tooltip>}
-              {(!!props.onTextDiagram || !!props.onTextImagine || !!props.onTextSpeak) && <Divider />}
+              {(!!props.onTextDiagram || !!props.onTextUI || !!props.onTextImagine || !!props.onTextSpeak) && <Divider />}
 
               {/* Bubble Copy */}
               <Tooltip disableInteractive arrow placement='top' title='Copy Selection'>
@@ -1238,10 +1262,14 @@ export function ChatMessage(props: {
             <ListItemDecorator><ContentCopyIcon /></ListItemDecorator>
             Copy
           </MenuItem>
-          {!!props.onTextDiagram && <ListDivider />}
+          {(!!props.onTextDiagram || !!props.onTextUI) && <ListDivider />}
           {!!props.onTextDiagram && <MenuItem onClick={handleOpsDiagram} disabled={!couldDiagram || props.isImagining}>
             <ListItemDecorator><PhTreeStructure /></ListItemDecorator>
             Auto-Diagram ...
+          </MenuItem>}
+          {!!props.onTextUI && <MenuItem onClick={handleOpsUI} disabled={!couldUI}>
+            <ListItemDecorator><DashboardCustomizeOutlinedIcon /></ListItemDecorator>
+            Auto-UI
           </MenuItem>}
           {!!props.onTextImagine && <MenuItem onClick={handleOpsImagine} disabled={!couldImagine || props.isImagining}>
             <ListItemDecorator>{props.isImagining ? <CircularProgress size='sm' /> : <FormatPaintOutlinedIcon />}</ListItemDecorator>

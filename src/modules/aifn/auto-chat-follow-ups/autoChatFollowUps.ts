@@ -6,7 +6,7 @@ import { aixCGR_ChatSequence_FromDMessagesOrThrow, aixCGR_SystemMessageText } fr
 import { aixChatGenerateContent_DMessage_orThrow, aixCreateChatGenerateContext } from '~/modules/aix/client/aix.client';
 
 import { ConversationsManager } from '~/common/chat-overlay/ConversationsManager';
-import { createDMessageTextContent, messageFragmentsReduceText } from '~/common/stores/chat/chat.message';
+import { createDMessageTextContent, type DMessage, messageFragmentsReduceText } from '~/common/stores/chat/chat.message';
 import { createErrorContentFragment, createPlaceholderVoidFragment, createTextContentFragment } from '~/common/stores/chat/chat.fragments';
 import { getDomainModelIdOrThrow } from '~/common/stores/llms/store-llms';
 import { marshallWrapText } from '~/common/stores/chat/chat.tokens';
@@ -41,9 +41,121 @@ interface DumbToolTBD {
   fun: AixClientFunctionCallToolDefinition,
 }
 
+interface AutoChatFollowUpContext {
+  assistantMessage: DMessage;
+  assistantMessageId: string;
+  assistantMessageText: string;
+  cHandler: ReturnType<typeof ConversationsManager.getHandler>;
+  codeLlmId: string;
+  conversationId: string;
+  personaSystemPrompt: string;
+  userMessage: DMessage;
+}
+
 
 function _getSystemMessage(tool: DumbToolTBD, variables: Record<string, string>, templateName: string): AixAPIChatGenerate_Request['systemMessage'] {
   return aixCGR_SystemMessageText(processPromptTemplate(tool.sys, { ...variables, functionName: tool.fun.name }, templateName));
+}
+
+function _getAutoChatFollowUpContext(conversationId: string, assistantMessageId: string): AutoChatFollowUpContext | null {
+  const { conversations } = useChatStore.getState();
+  const conversation = conversations.find(c => c.id === conversationId) ?? null;
+  if (!conversation || conversation.messages.length < 2)
+    return null;
+
+  let codeLlmId;
+  try {
+    codeLlmId = getDomainModelIdOrThrow(['codeApply'], true, false, 'chat-followups');
+  } catch (error) {
+    console.log(`autoSuggestions: ${error}`);
+    return null;
+  }
+
+  const assistantMessageIndex = conversation.messages.findIndex(m => m.id === assistantMessageId);
+  if (assistantMessageIndex < 2)
+    return null;
+
+  const systemMessage = conversation.messages[0];
+  const userMessage = conversation.messages[assistantMessageIndex - 1];
+  const assistantMessage = conversation.messages[assistantMessageIndex];
+
+  if (!(systemMessage?.role === 'system') || !(userMessage?.role === 'user') || !(assistantMessage?.role === 'assistant'))
+    return null;
+
+  return {
+    assistantMessage,
+    assistantMessageId,
+    assistantMessageText: messageFragmentsReduceText(assistantMessage.fragments),
+    cHandler: ConversationsManager.getHandler(conversationId),
+    codeLlmId,
+    conversationId,
+    personaSystemPrompt: messageFragmentsReduceText(systemMessage.fragments),
+    userMessage,
+  };
+}
+
+async function _runAutoChatFollowUpHTMLUI(context: AutoChatFollowUpContext): Promise<void> {
+  const {
+    assistantMessage,
+    assistantMessageId,
+    assistantMessageText,
+    cHandler,
+    codeLlmId,
+    conversationId,
+    personaSystemPrompt,
+    userMessage,
+  } = context;
+
+  if (['<html', '<HTML', '<Html'].some(s => assistantMessageText.includes(s)))
+    return;
+
+  const placeholderFragment = createPlaceholderVoidFragment('Auto-UI ...');
+  cHandler.messageFragmentAppend(assistantMessageId, placeholderFragment, false, false);
+
+  const systemMessage = _getSystemMessage(uiTool, { personaSystemPrompt }, 'chat-followup-htmlui_system');
+  const chatSequence = await aixCGR_ChatSequence_FromDMessagesOrThrow([
+    userMessage,
+    assistantMessage,
+    createDMessageTextContent('user', processPromptTemplate(uiTool.usr, { functionName: uiTool.fun.name }, 'chat-followup-htmlui_reminder')),
+  ]);
+
+  aixChatGenerateContent_DMessage_orThrow(
+    codeLlmId,
+    { systemMessage, chatSequence, tools: [aixFunctionCallTool(uiTool.fun)], toolsPolicy: { type: 'any' } },
+    aixCreateChatGenerateContext('chat-followup-htmlui', conversationId),
+    false,
+    { abortSignal: 'NON_ABORTABLE' },
+  ).then(({ fragments }) => {
+
+    const { argsObject } = aixRequireSingleFunctionCallInvocation(fragments, uiTool.fun.name, false, 'chat-followup-htmlui');
+    const { html, file_name } = uiTool.fun.inputSchema.parse(argsObject);
+    if (html && file_name) {
+
+      const htmlUI = html.trim();
+      if (!['<!DOCTYPE', '<!doctype', '<html', '<HTML', '<Html'].some(s => htmlUI.includes(s))) {
+        console.log(`autoSuggestions: invalid generated HTML: ${htmlUI.slice(0, 20)}...`);
+        throw new Error('Invalid HTML');
+      }
+
+      const fileName = (file_name || 'ui').trim().replace(/[^a-zA-Z0-9-]/g, '') + '.html';
+      const codeBlock = marshallWrapText(htmlUI, fileName, 'markdown-code');
+      const fragment = createTextContentFragment(codeBlock);
+      cHandler.messageFragmentReplace(assistantMessageId, placeholderFragment.fId, fragment, false);
+      return;
+    }
+
+    cHandler.messageFragmentDelete(assistantMessageId, placeholderFragment.fId, false, false);
+  }).catch(error => {
+    cHandler.messageFragmentReplace(assistantMessageId, placeholderFragment.fId, createErrorContentFragment(`Auto-UI generation issue: ${error?.message || error}`), false);
+  });
+}
+
+export async function autoChatFollowUpHTMLUI(conversationId: string, assistantMessageId: string): Promise<void> {
+  const context = _getAutoChatFollowUpContext(conversationId, assistantMessageId);
+  if (!context)
+    return;
+
+  await _runAutoChatFollowUpHTMLUI(context);
 }
 
 
@@ -134,37 +246,20 @@ Please follow closely the following requirements:
  */
 export async function autoChatFollowUps(conversationId: string, assistantMessageId: string, suggestDiagrams: boolean, suggestHTMLUI: boolean, suggestQuestions: boolean) {
 
-  // skip invalid or short conversations
-  const { conversations } = useChatStore.getState();
-  const conversation = conversations.find(c => c.id === conversationId) ?? null;
-  if (!conversation || conversation.messages.length < 2) return;
+  const context = _getAutoChatFollowUpContext(conversationId, assistantMessageId);
+  if (!context)
+    return;
 
-  // require a valid fast model (only)
-  let codeLlmId;
-  try {
-    codeLlmId = getDomainModelIdOrThrow(['codeApply'], true, false, 'chat-followups');
-  } catch (error) {
-    return console.log(`autoSuggestions: ${error}`);
-  }
-
-  // find the index of the assistant message
-  const assistantMessageIndex = conversation.messages.findIndex(m => m.id === assistantMessageId);
-  if (assistantMessageIndex < 2) return;
-
-  const systemMessage = conversation.messages[0];
-  const userMessage = conversation.messages[assistantMessageIndex - 1];
-  const assistantMessage = conversation.messages[assistantMessageIndex];
-
-  // verify the roles of the last messages
-  if (!(systemMessage?.role === 'system') || !(userMessage?.role === 'user') || !(assistantMessage?.role === 'assistant')) return;
-
-  // Execute the following follow-ups in parallel
-  // const assistantMessageId = assistantMessage.id;
-
-  const personaSystemPrompt = messageFragmentsReduceText(systemMessage.fragments);
-  const assistantMessageText = messageFragmentsReduceText(assistantMessage.fragments);
-
-  const cHandler = ConversationsManager.getHandler(conversationId);
+  const {
+    assistantMessage,
+    assistantMessageId: resolvedAssistantMessageId,
+    assistantMessageText,
+    cHandler,
+    codeLlmId,
+    conversationId: resolvedConversationId,
+    personaSystemPrompt,
+    userMessage,
+  } = context;
 
   // Follow-up: Question
   if (suggestQuestions) {
@@ -190,7 +285,7 @@ export async function autoChatFollowUps(conversationId: string, assistantMessage
     aixChatGenerateContent_DMessage_orThrow(
       codeLlmId,
       { systemMessage, chatSequence, tools: [aixFunctionCallTool(diagramsTool.fun)], toolsPolicy: { type: 'any' } },
-      aixCreateChatGenerateContext('chat-followup-diagram', conversationId),
+      aixCreateChatGenerateContext('chat-followup-diagram', resolvedConversationId),
       false,
       { abortSignal: 'NON_ABORTABLE' },
     ).then(({ fragments }) => {
@@ -211,66 +306,19 @@ export async function autoChatFollowUps(conversationId: string, assistantMessage
         const fileName = `${type}.diagram`;
         const codeBlock = marshallWrapText(plantUML, /*'[Auto Diagram] ' +*/ fileName, 'markdown-code');
         const fragment = createTextContentFragment(codeBlock);
-        cHandler.messageFragmentReplace(assistantMessageId, placeholderFragment.fId, fragment, false);
+        cHandler.messageFragmentReplace(resolvedAssistantMessageId, placeholderFragment.fId, fragment, false);
         return;
       }
 
       // no diagram generated
-      cHandler.messageFragmentDelete(assistantMessageId, placeholderFragment.fId, false, false);
+      cHandler.messageFragmentDelete(resolvedAssistantMessageId, placeholderFragment.fId, false, false);
     }).catch(error => {
-      cHandler.messageFragmentReplace(assistantMessageId, placeholderFragment.fId, createErrorContentFragment(`Auto-Diagram generation issue: ${error?.message || error}`), false);
+      cHandler.messageFragmentReplace(resolvedAssistantMessageId, placeholderFragment.fId, createErrorContentFragment(`Auto-Diagram generation issue: ${error?.message || error}`), false);
     });
   }
 
   // Follow-up: Auto-HTML-UI if the assistant text does not contain <html> already
-  if (suggestHTMLUI && !['<html', '<HTML', '<Html'].some(s => assistantMessageText.includes(s))) {
-
-    // Placeholder for the UI
-    const placeholderFragment = createPlaceholderVoidFragment('Auto-UI ...');
-    cHandler.messageFragmentAppend(assistantMessageId, placeholderFragment, false, false);
-
-    // Instructions
-    const systemMessage = _getSystemMessage(uiTool, { personaSystemPrompt }, 'chat-followup-htmlui_system');
-    const chatSequence = await aixCGR_ChatSequence_FromDMessagesOrThrow([
-      userMessage,
-      assistantMessage,
-      createDMessageTextContent('user', processPromptTemplate(uiTool.usr, { functionName: uiTool.fun.name }, 'chat-followup-htmlui_reminder')),
-    ]);
-
-    // Strict call to a function
-    aixChatGenerateContent_DMessage_orThrow(
-      codeLlmId,
-      { systemMessage, chatSequence, tools: [aixFunctionCallTool(uiTool.fun)], toolsPolicy: { type: 'any' } },
-      aixCreateChatGenerateContext('chat-followup-htmlui', conversationId),
-      false,
-      { abortSignal: 'NON_ABORTABLE' },
-    ).then(({ fragments }) => {
-
-      // extract the function call
-      const { argsObject } = aixRequireSingleFunctionCallInvocation(fragments, uiTool.fun.name, false, 'chat-followup-diagram');
-      const { html, file_name } = uiTool.fun.inputSchema.parse(argsObject);
-      if (html && file_name) {
-
-        // validate the code
-        const htmlUI = html.trim();
-        if (!['<!DOCTYPE', '<!doctype', '<html', '<HTML', '<Html'].some(s => htmlUI.includes(s))) {
-          console.log(`autoSuggestions: invalid generated HTML: ${htmlUI.slice(0, 20)}...`);
-          throw new Error('Invalid HTML');
-        }
-
-        // HTML UI Text Content to replace the placeholder
-        const fileName = (file_name || 'ui').trim().replace(/[^a-zA-Z0-9-]/g, '') + '.html';
-        const codeBlock = marshallWrapText(htmlUI, /*'[Generative UI] ' +*/ fileName, 'markdown-code');
-        const fragment = createTextContentFragment(codeBlock); // `Example of Generative User Interface ("Auto UI" setting):\n${codeBlock}`
-        cHandler.messageFragmentReplace(assistantMessageId, placeholderFragment.fId, fragment, false);
-        return;
-      }
-
-      // no UI generated
-      cHandler.messageFragmentDelete(assistantMessageId, placeholderFragment.fId, false, false);
-    }).catch(error => {
-      cHandler.messageFragmentReplace(assistantMessageId, placeholderFragment.fId, createErrorContentFragment(`Auto-UI generation issue: ${error?.message || error}`), false);
-    });
-  }
+  if (suggestHTMLUI)
+    await _runAutoChatFollowUpHTMLUI(context);
 
 }

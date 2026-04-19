@@ -5,6 +5,7 @@ import type { SxProps } from '@mui/joy/styles/types';
 import { Box, useTheme } from '@mui/joy';
 
 import type { DiagramConfig } from '~/modules/aifn/digrams/DiagramsModal';
+import { autoChatFollowUpHTMLUI } from '~/modules/aifn/auto-chat-follow-ups/autoChatFollowUps';
 import type { TradeConfig } from '~/modules/trade/TradeModal';
 import { downloadSingleChat, importConversationsFromFilesAtRest, openConversationsAtRestPicker } from '~/modules/trade/trade.client';
 import { imaginePromptFromTextOrThrow } from '~/modules/aifn/imagine/imaginePromptFromText';
@@ -491,6 +492,10 @@ export function AppChat() {
 
   const handleTextDiagram = React.useCallback((diagramConfig: DiagramConfig | null) => setDiagramConfig(diagramConfig), []);
 
+  const handleTextUI = React.useCallback(async (conversationId: DConversationId, messageId: string) => {
+    await autoChatFollowUpHTMLUI(conversationId, messageId);
+  }, []);
+
   const handleImagineFromText = React.useCallback(async (conversationId: DConversationId, subjectText: string) => {
     const cHandler = ConversationsManager.getHandler(conversationId);
     if (!cHandler.isValid()) return;
@@ -882,6 +887,7 @@ export function AppChat() {
                   onConversationExecuteHistory={handleConversationExecuteHistory}
                   onConversationNew={handleConversationNewInFocusedPane}
                   onTextDiagram={handleTextDiagram}
+                  onTextUI={handleTextUI}
                   onTextImagine={handleImagineFromText}
                   sx={chatMessageListSx}
                 />
