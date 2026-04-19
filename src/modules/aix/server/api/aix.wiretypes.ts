@@ -553,6 +553,7 @@ export namespace AixWire_API {
       'chat-ai-summarize',
       'chat-ai-title',
       'chat-attachment-prompts',  // - id of the first fragment
+      'chat-followup-designpad',
       'chat-followup-diagram',
       'chat-followup-htmlui',
       'chat-react-turn',

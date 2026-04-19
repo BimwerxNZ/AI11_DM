@@ -192,6 +192,103 @@ export async function autoChatFollowUpHTMLUI(conversationId: string, assistantMe
 }
 
 
+// Auto-Calc / DesignPad
+
+const designPadTool = {
+  sys: `You are a helpful AI assistant skilled in creating DesignPad engineering worksheets. Analyze the conversation and user persona below to determine if a DesignPad script would complement or enhance the user's understanding.
+
+**Rating System**
+Rate the script's usefulness (1-5): 1. Misleading, unnecessary, or duplicate, 2. Not a fit or trivial, 3. Potentially useful, 4. Very useful, 5. Essential
+
+Only if the rating is 3, 4, or 5, generate the DesignPad script. Otherwise leave the script empty and STOP.
+
+**Assistant Personality Type**
+{{personaSystemPrompt}}
+
+**Instructions**
+Analyze the following short exchange and call the function {{functionName}} with the DesignPad script only if the score is 3, 4, or 5.
+
+Please follow these requirements:
+- Generate valid DesignPad syntax only.
+- Define variables before use.
+- Keep units attached where appropriate, such as mm, m, kN, MPa, and kNm.
+- Use quoted report lines for prose, headings, HTML snippets, and layout text.
+- Use DesignPad control directives exactly when needed: #if / #else if / #else / #end if and #repeat, #for, or #while ending with #loop.
+- Preserve the engineering intent of the assistant answer.
+- Prefer clear, reusable worksheets with headings, assumptions, inputs, calculations, and result summaries.
+- Do not wrap the script in markdown fences.
+- Do not add explanatory prose outside the DesignPad script.`,
+  usr: 'Analyze the conversation and call {{functionName}} to evaluate whether a DesignPad worksheet would help, then generate it if sufficiently useful.',
+  fun: {
+    name: 'generate_designpad_script',
+    description: 'Generates a DesignPad worksheet from the conversation when it would be useful to the user.',
+    inputSchema: z.object({
+      possible_calc_requirements: z.string().describe('Short summary of the DesignPad worksheet intent and structure.'),
+      rating_short_reason: z.string().describe('A short reason for whether the worksheet would be useful.'),
+      rating_number: z.number().describe('The usefulness of the worksheet on a scale from 1 to 5. If 1 or 2, do not proceed and STOP.'),
+      designpad_script: z.string().describe('The full DesignPad source code only, with no markdown fences.').optional(),
+    }),
+  },
+} satisfies DumbToolTBD;
+
+async function _runAutoChatFollowUpDesignPad(context: AutoChatFollowUpContext): Promise<void> {
+  const {
+    assistantMessage,
+    assistantMessageId,
+    assistantMessageText,
+    cHandler,
+    codeLlmId,
+    conversationId,
+    personaSystemPrompt,
+    userMessage,
+  } = context;
+
+  if (['```designpad', '```calcpad'].some(s => assistantMessageText.toLowerCase().includes(s)))
+    return;
+
+  const placeholderFragment = createPlaceholderVoidFragment('Auto-Calc ...');
+  cHandler.messageFragmentAppend(assistantMessageId, placeholderFragment, false, false);
+
+  const systemMessage = _getSystemMessage(designPadTool, { personaSystemPrompt }, 'chat-followup-designpad_system');
+  const reminderText = processPromptTemplate(designPadTool.usr, { functionName: designPadTool.fun.name }, 'chat-followup-designpad_reminder');
+  const chatSequence = await aixCGR_ChatSequence_FromDMessagesOrThrow(
+    _createTextOnlyFollowUpMessages(userMessage, assistantMessage, reminderText),
+  );
+
+  aixChatGenerateContent_DMessage_orThrow(
+    codeLlmId,
+    { systemMessage, chatSequence, tools: [aixFunctionCallTool(designPadTool.fun)], toolsPolicy: { type: 'any' } },
+    aixCreateChatGenerateContext('chat-followup-designpad', conversationId),
+    false,
+    { abortSignal: 'NON_ABORTABLE' },
+  ).then(({ fragments }) => {
+
+    const { argsObject } = aixRequireSingleFunctionCallInvocation(fragments, designPadTool.fun.name, false, 'chat-followup-designpad');
+    const { designpad_script } = designPadTool.fun.inputSchema.parse(argsObject);
+    if (designpad_script?.trim()) {
+      const codeBlock = marshallWrapText(designpad_script.trim(), 'designpad', 'markdown-code');
+      const fragment = createTextContentFragment(codeBlock);
+      cHandler.messageFragmentReplace(assistantMessageId, placeholderFragment.fId, fragment, false);
+      return;
+    }
+
+    cHandler.messageFragmentDelete(assistantMessageId, placeholderFragment.fId, false, false);
+  }).catch(error => {
+    if (_isExpiredToolCallHistoryError(error) && _handleExpiredFollowUpError(cHandler, assistantMessageId, placeholderFragment.fId, 'Auto-Calc'))
+      return;
+    cHandler.messageFragmentReplace(assistantMessageId, placeholderFragment.fId, createErrorContentFragment(`Auto-Calc generation issue: ${error?.message || error}`), false);
+  });
+}
+
+export async function autoChatFollowUpDesignPad(conversationId: string, assistantMessageId: string): Promise<void> {
+  const context = _getAutoChatFollowUpContext(conversationId, assistantMessageId);
+  if (!context)
+    return;
+
+  await _runAutoChatFollowUpDesignPad(context);
+}
+
+
 // Auto-Diagram
 
 const diagramsTool = {

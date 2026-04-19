@@ -10,6 +10,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ContentCutIcon from '@mui/icons-material/ContentCut';
+import CalculateOutlinedIcon from '@mui/icons-material/CalculateOutlined';
 import DashboardCustomizeOutlinedIcon from '@mui/icons-material/DashboardCustomizeOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DifferenceIcon from '@mui/icons-material/Difference';
@@ -170,6 +171,7 @@ export function ChatMessage(props: {
   onMessageToggleUserFlag?: (messageId: string, flag: DMessageUserFlag, maxPerConversation?: number) => void,
   onMessageTruncate?: (messageId: string) => void,
   onTextDiagram?: (messageId: string, text: string) => Promise<void>,
+  onTextCalc?: (messageId: string) => Promise<void>,
   onTextUI?: (messageId: string) => Promise<void>,
   onTextImagine?: (text: string) => Promise<void>,
   onTextSpeak?: (text: string) => Promise<void>,
@@ -235,6 +237,7 @@ export function ChatMessage(props: {
   const textSubject = selText ? selText : fragmentFlattenedText;
   const isSpecialT2I = textSubject.startsWith('/draw ') || textSubject.startsWith('/imagine ') || textSubject.startsWith('/img ');
   const couldDiagram = textSubject.length >= 100 && !isSpecialT2I;
+  const couldCalc = fromAssistant && !messagePendingIncomplete && fragmentFlattenedText.trim().length >= BUBBLE_MIN_TEXT_LENGTH && !['```designpad', '```calcpad'].some(s => fragmentFlattenedText.toLowerCase().includes(s));
   const couldUI = fromAssistant && !messagePendingIncomplete && fragmentFlattenedText.trim().length >= BUBBLE_MIN_TEXT_LENGTH && !['<html', '<HTML', '<Html'].some(s => fragmentFlattenedText.includes(s));
   const couldImagine = textSubject.length >= 3 && !isSpecialT2I;
   const couldSpeak = couldImagine;
@@ -423,6 +426,16 @@ export function ChatMessage(props: {
     e.preventDefault();
     if (props.onTextUI) {
       await props.onTextUI(messageId);
+      handleCloseOpsMenu();
+      closeContextMenu();
+      closeBubble();
+    }
+  };
+
+  const handleOpsCalc = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (props.onTextCalc) {
+      await props.onTextCalc(messageId);
       handleCloseOpsMenu();
       closeContextMenu();
       closeBubble();
@@ -1070,11 +1083,17 @@ export function ChatMessage(props: {
             </MenuItem>
           )}
           {/* Diagram / Draw / Speak */}
-          {(!!props.onTextDiagram || !!props.onTextUI) && <ListDivider />}
+          {(!!props.onTextDiagram || !!props.onTextCalc || !!props.onTextUI) && <ListDivider />}
           {!!props.onTextDiagram && (
             <MenuItem onClick={handleOpsDiagram} disabled={!couldDiagram}>
               <ListItemDecorator><PhTreeStructure /></ListItemDecorator>
               Auto-Diagram ...
+            </MenuItem>
+          )}
+          {!!props.onTextCalc && (
+            <MenuItem onClick={handleOpsCalc} disabled={!couldCalc}>
+              <ListItemDecorator><CalculateOutlinedIcon /></ListItemDecorator>
+              Auto-Calc
             </MenuItem>
           )}
           {!!props.onTextUI && (
@@ -1212,6 +1231,11 @@ export function ChatMessage(props: {
                   <PhTreeStructure sx={{ color: couldDiagram ? 'primary' : 'neutral.plainDisabledColor' }} />
                 </IconButton>
               </Tooltip>}
+              {!!props.onTextCalc && <Tooltip disableInteractive arrow placement='top' title={couldCalc ? 'Auto-Calc' : 'Auto-Calc unavailable for this response'}>
+                <IconButton color='success' onClick={couldCalc ? handleOpsCalc : undefined}>
+                  <CalculateOutlinedIcon sx={{ color: couldCalc ? 'primary' : 'neutral.plainDisabledColor' }} />
+                </IconButton>
+              </Tooltip>}
               {!!props.onTextUI && <Tooltip disableInteractive arrow placement='top' title={couldUI ? 'Auto-UI' : 'Auto-UI unavailable for this response'}>
                 <IconButton color='success' onClick={couldUI ? handleOpsUI : undefined}>
                   <DashboardCustomizeOutlinedIcon sx={{ color: couldUI ? 'primary' : 'neutral.plainDisabledColor' }} />
@@ -1227,7 +1251,7 @@ export function ChatMessage(props: {
                   {!props.isSpeaking ? <PhVoice /> : <CircularProgress sx={{ '--CircularProgress-size': '16px' }} />}
                 </IconButton>
               </Tooltip>}
-              {(!!props.onTextDiagram || !!props.onTextUI || !!props.onTextImagine || !!props.onTextSpeak) && <Divider />}
+              {(!!props.onTextDiagram || !!props.onTextCalc || !!props.onTextUI || !!props.onTextImagine || !!props.onTextSpeak) && <Divider />}
 
               {/* Bubble Copy */}
               <Tooltip disableInteractive arrow placement='top' title='Copy Selection'>
@@ -1262,10 +1286,14 @@ export function ChatMessage(props: {
             <ListItemDecorator><ContentCopyIcon /></ListItemDecorator>
             Copy
           </MenuItem>
-          {(!!props.onTextDiagram || !!props.onTextUI) && <ListDivider />}
+          {(!!props.onTextDiagram || !!props.onTextCalc || !!props.onTextUI) && <ListDivider />}
           {!!props.onTextDiagram && <MenuItem onClick={handleOpsDiagram} disabled={!couldDiagram || props.isImagining}>
             <ListItemDecorator><PhTreeStructure /></ListItemDecorator>
             Auto-Diagram ...
+          </MenuItem>}
+          {!!props.onTextCalc && <MenuItem onClick={handleOpsCalc} disabled={!couldCalc}>
+            <ListItemDecorator><CalculateOutlinedIcon /></ListItemDecorator>
+            Auto-Calc
           </MenuItem>}
           {!!props.onTextUI && <MenuItem onClick={handleOpsUI} disabled={!couldUI}>
             <ListItemDecorator><DashboardCustomizeOutlinedIcon /></ListItemDecorator>

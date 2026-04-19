@@ -16,6 +16,7 @@ const BACKGROUND_CONTEXT_NAMES = [
   'chat-ai-title',
   'chat-attachment-prompts',
   'chat-followup-chartjs',
+  'chat-followup-designpad',
   'chat-followup-diagram',
   'chat-followup-htmlui',
   'fixup-code',
