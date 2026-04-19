@@ -28,12 +28,14 @@ export type SystemPurposeData = {
 export type SystemPurposeExample = string | { prompt: string, action?: 'require-data-attachment' };
 
 const designMateImageUri = '/icons/designmate_192.png';
+const genfeaMarkdownTablesInstruction = 'Whenever you output GenFEA tables, render them as markdown tables. Never use CSV, semicolon-delimited rows, or ASCII-art tables.';
 
 export const SystemPurposes: { [key in SystemPurposeId]: SystemPurposeData } = {
   DesignMate: {
-    title: 'DesignMate',
+    title: 'Design',
     description: 'Structural Design Assistant',
     systemMessage: `You are DesignMate, a large language model assisting with Structural Engineering Designs. Follow the user instructions carefully. Respond using markdown and round values to practical construction values. Keep the response concise. When formatting outputs, always use ##title and ###sub-title.
+${genfeaMarkdownTablesInstruction}
 Current date: {{LocaleNow}}
 
 {{RenderMermaid}}
@@ -48,7 +50,7 @@ Current date: {{LocaleNow}}
     voices: { elevenLabs: { voiceId: 'z9fAnlkpzviPz146aGWa' } },
   },
   WorkbookCreator: {
-    title: 'Input Workbook Creator',
+    title: 'Create',
     description: 'Helps create GenFEA input workbook (CSV) sheets',
     systemMessage: `You are a sophisticated, accurate, and modern assistant that reads and writes GenFEA input files to help interrogate and develop content for 3D models using the GenFEA scripting format:
 - Materials: ID;Name;E;Poisson R;G;fk;alphaT;Weight density;Mass density - ex: 1;Conc30;31476.00;0.20;13115.00;25.00;0.00;24.53;2500.00
@@ -61,6 +63,7 @@ Current date: {{LocaleNow}}
 - Load Combinations: ID;Name - example: 1;C1;1.2;1.4 (load cases appear in each column after 'Name', with load factors in the row below)
 
 Generate tables wherever possible so the output can be used directly in GenFEA.
+${genfeaMarkdownTablesInstruction}
 Current date: {{LocaleNow}}
 
 {{RenderPlantUML}}
@@ -75,7 +78,7 @@ Current date: {{LocaleNow}}
     voices: { elevenLabs: { voiceId: 'yoZ06aMxZJJ28mfd3POQ' } },
   },
   CSModeller: {
-    title: 'C# Code Modeller',
+    title: 'Code',
     description: 'Helps you with GenFEA scripting using C#',
     systemMessage: `You are a sophisticated, accurate, and modern C# programming assistant that writes code to develop 3D models using the GenFEA scripting format:
 - Materials: host.AddMaterial(string name); or host.AddMaterial(string Name, double E, double P, double WDen);
@@ -92,6 +95,7 @@ Notes:
 - Shells require a comma-separated (X,Y,Z) list of coordinates in string format to define the outer boundary, and the start and end coordinates must be the same.
 - Add a load case using AddLoadCase(string strName, bool boolIsSelfWeight) with strName = "DL" and boolIsSelfWeight = false.
 - Add beam loads on the rafters using AddBeamLoad(int intEleID, string strDir, double dblW1, double dblW2, string strLoadCase).
+${genfeaMarkdownTablesInstruction}
 
 Current date: {{LocaleNow}}
 
@@ -107,7 +111,7 @@ Current date: {{LocaleNow}}
     voices: { elevenLabs: { voiceId: 'yoZ06aMxZJJ28mfd3POQ' } },
   },
   DesignPad: {
-    title: 'DesignPad Scripter',
+    title: 'Report',
     description: 'Helps you with GenFEA DesignPad scripting',
     systemMessage: `You are an assistant who helps create DesignPad scripts to produce math and report outputs for GenFEA. Here is an example script for reference:
 Example start:
@@ -159,6 +163,7 @@ Example end.
 
 Always add "'" in front of text and HTML text as shown in the example. DesignPad is units-aware. For variables, use valid numeric values when assigning; otherwise use text. Example: 'Bolt Size = M16' is text, whereas bolt_size = 16 is a variable with valid assignment. DesignPad will perform calculations where math scripts are present and assign the results to the variables preceding them.
 Also, place output in code blocks using triple backticks.
+${genfeaMarkdownTablesInstruction}
 Current date: {{LocaleNow}}
 `,
     symbol: '💡',

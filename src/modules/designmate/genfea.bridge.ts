@@ -1,11 +1,10 @@
 import type { SystemPurposeId } from '../../data';
 
-import { imageDataToImageAttachmentFragmentViaDBlob } from '~/common/attachment-drafts/attachment.dblobs';
-import type { AttachmentDraftSource } from '~/common/attachment-drafts/attachment.types';
+import type { AttachmentCreationOptions, AttachmentDraftSource } from '~/common/attachment-drafts/attachment.types';
 import type { DConversationId } from '~/common/stores/chat/chat.conversation';
 import type { DMessageId } from '~/common/stores/chat/chat.message';
 import { createTextContentFragment, type DMessageAttachmentFragment, type DMessageContentFragment } from '~/common/stores/chat/chat.fragments';
-import { convert_Base64DataURL_To_Base64WithMimeType } from '~/common/util/blobUtils';
+import { convert_Base64DataURL_To_Base64WithMimeType, convert_Base64WithMimeType_To_Blob } from '~/common/util/blobUtils';
 
 
 export type DesignMateGenFEASendKind =
@@ -47,17 +46,34 @@ export interface DesignMateGenFEABridge {
   send: (payload: DesignMateGenFEASendPayload) => Promise<DesignMateGenFEASendResult>;
 }
 
+export interface DesignMateGenFEABridgePreparedSendNow {
+  mode: 'send-now';
+  fragments: (DMessageContentFragment | DMessageAttachmentFragment)[];
+  suggestedTitle: string | null;
+}
+
+export interface DesignMateGenFEABridgePreparedStageAttachment {
+  mode: 'stage-attachment';
+  attachmentSource: AttachmentDraftSource;
+  attachmentOptions: AttachmentCreationOptions;
+  suggestedTitle: string | null;
+}
+
+export type DesignMateGenFEABridgePreparedPayload =
+  | DesignMateGenFEABridgePreparedSendNow
+  | DesignMateGenFEABridgePreparedStageAttachment;
+
 declare global {
   interface Window {
     DesignMateGenFEA?: DesignMateGenFEABridge;
   }
 }
 
-const GENFEA_SCREENSHOT_PROMPT = 'Review this structural screenshot in the current context.';
 const DEFAULT_SCREENSHOT_FILENAME = 'genfea-screenshot.png';
+const PROJECT_TITLE_MAX_LENGTH = 120;
 
 
-export async function buildDesignMateGenFEABridgeFragments(payload: DesignMateGenFEASendPayload): Promise<(DMessageContentFragment | DMessageAttachmentFragment)[]> {
+export async function prepareDesignMateGenFEABridgePayload(payload: DesignMateGenFEASendPayload): Promise<DesignMateGenFEABridgePreparedPayload> {
   switch (payload.kind) {
     case 'prime-model':
     case 'prime-results': {
@@ -65,7 +81,11 @@ export async function buildDesignMateGenFEABridgeFragments(payload: DesignMateGe
       if (!text)
         throw new Error('GenFEA text payload was empty.');
 
-      return [createTextContentFragment(text)];
+      return {
+        mode: 'send-now',
+        fragments: [createTextContentFragment(text)],
+        suggestedTitle: extractDesignMateGenFEAProjectTitle(payload.kind, text),
+      };
     }
 
     case 'screenshot': {
@@ -75,34 +95,60 @@ export async function buildDesignMateGenFEABridgeFragments(payload: DesignMateGe
 
       const { base64Data, mimeType } = convert_Base64DataURL_To_Base64WithMimeType(imageDataUrl, 'designmate-genfea-screenshot');
       const imageFilename = payload.imageFilename?.trim() || DEFAULT_SCREENSHOT_FILENAME;
-      const attachmentTitle = imageFilename.replace(/\.[^.]+$/, '') || 'GenFEA Screenshot';
+      const imageBlob = await convert_Base64WithMimeType_To_Blob(base64Data, mimeType, 'designmate-genfea-screenshot');
+      const imageFile = new File([imageBlob], imageFilename, { type: mimeType }) as any;
 
-      // We only need lightweight source metadata here so the resulting local attachment
-      // behaves like a native chat image without routing through server-backed threads.
-      const source = {
-        media: 'file',
-        origin: 'screencapture',
-        fileWithHandle: new File([], imageFilename, { type: mimeType }) as any,
-        refPath: imageFilename,
-      } as AttachmentDraftSource;
-
-      const imageAttachment = await imageDataToImageAttachmentFragmentViaDBlob(
-        mimeType,
-        base64Data,
-        source,
-        attachmentTitle,
-        'Sent from GenFEA',
-        false,
-        false,
-      );
-
-      if (!imageAttachment)
-        throw new Error('DesignMate could not prepare the screenshot attachment.');
-
-      return [
-        createTextContentFragment(GENFEA_SCREENSHOT_PROMPT),
-        imageAttachment,
-      ];
+      return {
+        mode: 'stage-attachment',
+        attachmentSource: {
+          media: 'file',
+          origin: 'screencapture',
+          fileWithHandle: imageFile,
+          refPath: imageFilename,
+        },
+        attachmentOptions: {
+          hintAddImages: false,
+        },
+        suggestedTitle: null,
+      };
     }
   }
+}
+
+
+export function extractDesignMateGenFEAProjectTitle(kind: Extract<DesignMateGenFEASendKind, 'prime-model' | 'prime-results'>, text: string): string | null {
+  const trimmedText = text.trim();
+  if (!trimmedText)
+    return null;
+
+  const patterns = kind === 'prime-results'
+    ? [/(?:^|\r?\n)\s*([^\r\n]+?)\s+Structural Analysis Summary report \(GenFEA\):/i]
+    : [/(?:^|\r?\n)\s*GenFEA Structural Analysis model input for:\s*([^\r\n]+)/i];
+
+  for (const pattern of patterns) {
+    const match = trimmedText.match(pattern);
+    const candidate = sanitizeProjectTitle(match?.[1] ?? null);
+    if (candidate)
+      return candidate;
+  }
+
+  return null;
+}
+
+
+function sanitizeProjectTitle(projectTitle: string | null): string | null {
+  if (!projectTitle)
+    return null;
+
+  const normalizedTitle = projectTitle
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s:;,\-]+|[\s:;,\-]+$/g, '')
+    .trim();
+
+  if (!normalizedTitle)
+    return null;
+
+  return normalizedTitle.length > PROJECT_TITLE_MAX_LENGTH
+    ? normalizedTitle.slice(0, PROJECT_TITLE_MAX_LENGTH).trimEnd()
+    : normalizedTitle;
 }

@@ -29,7 +29,8 @@ import { createDMessageFromFragments, createDMessagePlaceholderIncomplete, DMess
 import { createErrorContentFragment, createTextContentFragment, DMessageAttachmentFragment, DMessageContentFragment, duplicateDMessageFragments } from '~/common/stores/chat/chat.fragments';
 import { gcChatImageAssets } from '~/common/stores/chat/chat.gc';
 import { getChatLLMId } from '~/common/stores/llms/store-llms';
-import { getConversation, getConversationSystemPurposeId, useConversation } from '~/common/stores/chat/store-chats';
+import { excludeSystemMessages } from '~/common/stores/chat/chat.conversation';
+import { getConversation, getConversationSystemPurposeId, useChatStore, useConversation } from '~/common/stores/chat/store-chats';
 import { optimaActions, optimaOpenModels, optimaOpenPreferences, useOptimaChromeless } from '~/common/layout/optima/useOptima';
 import { useFolderStore } from '~/common/stores/folders/store-chat-folders';
 import { useIsMobile, useIsTallScreen } from '~/common/components/useMatchMedia';
@@ -50,7 +51,7 @@ import { PaneTitleOverlay } from './components/PaneTitleOverlay';
 import { useComposerAutoHide } from './components/composer/useComposerAutoHide';
 import { usePanesManager } from './components/panes/store-panes-manager';
 import { DesignMateFeatures } from '~/modules/designmate/config';
-import { buildDesignMateGenFEABridgeFragments, type DesignMateGenFEASendError, type DesignMateGenFEASendPayload, type DesignMateGenFEASendSuccess } from '~/modules/designmate/genfea.bridge';
+import { prepareDesignMateGenFEABridgePayload, type DesignMateGenFEASendError, type DesignMateGenFEASendPayload, type DesignMateGenFEASendSuccess } from '~/modules/designmate/genfea.bridge';
 import { useDesignMateServerThreadsSync } from '~/modules/designmate/client/useDesignMateServerThreadsSync';
 
 import type { ChatExecuteMode } from './execute-mode/execute-mode.types';
@@ -302,6 +303,21 @@ export function AppChat() {
     return !handleExecuteOutcome(outcome);
   }, [handleExecuteOutcome]);
 
+  const handleApplyGenFEAProjectTitle = React.useCallback((conversation: DConversation, suggestedTitle: string | null) => {
+    if (!suggestedTitle || conversation.userTitle)
+      return;
+
+    const messageCount = excludeSystemMessages(conversation.messages).length;
+    const autoTitle = conversation.autoTitle?.trim() || '';
+    const isGenericAutoTitle =
+      !autoTitle ||
+      /^(chat|new chat)$/i.test(autoTitle) ||
+      /(genfea|structural analysis|summary report|model input)/i.test(autoTitle);
+
+    if (messageCount <= 1 || isGenericAutoTitle)
+      useChatStore.getState().setAutoTitle(conversation.id, suggestedTitle);
+  }, []);
+
   const handleDesignMateGenFEASend = React.useCallback(async (payload: DesignMateGenFEASendPayload): Promise<DesignMateGenFEASendSuccess | DesignMateGenFEASendError> => {
     const conversationId = focusedPaneConversationId;
     if (!conversationId) {
@@ -330,7 +346,16 @@ export function AppChat() {
     }
 
     try {
-      const fragments = await buildDesignMateGenFEABridgeFragments(payload);
+      const preparedPayload = await prepareDesignMateGenFEABridgePayload(payload);
+      const conversationHandler = ConversationsManager.getHandler(conversationId);
+      if (!conversationHandler) {
+        return {
+          ok: false,
+          code: 'designmate_missing_conversation_handler',
+          message: 'DesignMate could not access the active chat handler for this GenFEA request.',
+        };
+      }
+
       const latestConversation = getConversation(conversationId);
       if (!latestConversation || latestConversation.threadSource !== 'local') {
         return {
@@ -340,8 +365,22 @@ export function AppChat() {
         };
       }
 
-      const userMessage = createDMessageFromFragments('user', fragments);
-      ConversationsManager.getHandler(conversationId).messageAppend(userMessage);
+      if (preparedPayload.mode === 'stage-attachment') {
+        await conversationHandler.conversationOverlayStore.getState().createAttachmentDraft(
+          preparedPayload.attachmentSource,
+          preparedPayload.attachmentOptions,
+        );
+
+        return {
+          ok: true,
+          conversationId,
+          userMessageId: '',
+        };
+      }
+
+      const userMessage = createDMessageFromFragments('user', preparedPayload.fragments);
+      conversationHandler.messageAppend(userMessage);
+      handleApplyGenFEAProjectTitle(getConversation(conversationId) ?? latestConversation, preparedPayload.suggestedTitle);
 
       const outcome = await _handleExecute('generate-content', conversationId, 'designmate-genfea-bridge');
       const bridgeError = handleExecuteOutcome(outcome);
@@ -360,7 +399,7 @@ export function AppChat() {
         message: error?.message || 'DesignMate could not prepare the GenFEA payload.',
       };
     }
-  }, [focusedPaneConversationId, handleExecuteOutcome]);
+  }, [focusedPaneConversationId, handleApplyGenFEAProjectTitle, handleExecuteOutcome]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined')
