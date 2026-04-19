@@ -161,10 +161,12 @@ async function requestDesktopCalcpadRender(code: string): Promise<DesignMateDesk
     const rawResult = await desktopHost.renderCalcpad(code);
     return parseDesktopCalcpadRenderResult(rawResult);
   } catch (error: any) {
+    const errorDetails = describeDesktopHostError(error);
     return {
       ok: false,
       code: 'calcpad_transport_error',
-      error: error?.message || 'The desktop host could not render this Calcpad code.',
+      error: errorDetails || 'The desktop host could not render this Calcpad code.',
+      details: errorDetails || null,
     };
   }
 }
@@ -201,9 +203,8 @@ async function getDesignMateDesktopHost(): Promise<DesignMateDesktopHost | null>
 
 
 function parseDesktopCalcpadRenderResult(rawResult: unknown): DesignMateDesktopCalcpadRenderResult {
-  const parsedResult = typeof rawResult === 'string'
-    ? JSON.parse(rawResult)
-    : rawResult;
+  const normalizedResult = unwrapDesktopHostResult(rawResult);
+  const parsedResult = parseDesktopHostResultValue(normalizedResult);
 
   if (parsedResult && typeof parsedResult === 'object' && (parsedResult as any).ok === true && typeof (parsedResult as any).html === 'string') {
     return {
@@ -224,6 +225,108 @@ function parseDesktopCalcpadRenderResult(rawResult: unknown): DesignMateDesktopC
     code: parsedResult && typeof parsedResult === 'object' && typeof (parsedResult as any).code === 'string' ? (parsedResult as any).code : null,
     details: parsedResult && typeof parsedResult === 'object' && typeof (parsedResult as any).details === 'string' ? (parsedResult as any).details : null,
   };
+}
+
+
+function unwrapDesktopHostResult(rawResult: unknown): unknown {
+  let current = rawResult;
+
+  for (let depth = 0; depth < 4; depth++) {
+    if (!current || typeof current !== 'object')
+      break;
+
+    const value = current as Record<string, any>;
+
+    if (typeof value.result !== 'undefined') {
+      current = value.result;
+      continue;
+    }
+    if (typeof value.Result !== 'undefined') {
+      current = value.Result;
+      continue;
+    }
+    if (typeof value.response !== 'undefined') {
+      current = value.response;
+      continue;
+    }
+    if (typeof value.Response !== 'undefined') {
+      current = value.Response;
+      continue;
+    }
+    if (typeof value.returnValue !== 'undefined') {
+      current = value.returnValue;
+      continue;
+    }
+    if (typeof value.ReturnValue !== 'undefined') {
+      current = value.ReturnValue;
+      continue;
+    }
+    if (typeof value.value !== 'undefined') {
+      current = value.value;
+      continue;
+    }
+    if (typeof value.Value !== 'undefined') {
+      current = value.Value;
+      continue;
+    }
+
+    break;
+  }
+
+  return current;
+}
+
+
+function parseDesktopHostResultValue(rawResult: unknown): unknown {
+  if (typeof rawResult !== 'string')
+    return rawResult;
+
+  const trimmed = rawResult.trim();
+  if (!trimmed)
+    return rawResult;
+
+  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']')))
+    return JSON.parse(trimmed);
+
+  if (/<(?:!doctype|html|head|body|div|section|table|svg)\b/i.test(trimmed))
+    return { ok: true, html: rawResult };
+
+  return rawResult;
+}
+
+
+function describeDesktopHostError(error: unknown): string | null {
+  if (!error)
+    return null;
+
+  if (typeof error === 'string')
+    return error;
+
+  if (typeof error === 'object') {
+    const errorRecord = error as Record<string, any>;
+
+    if (typeof errorRecord.message === 'string' && errorRecord.message.trim())
+      return errorRecord.message.trim();
+    if (typeof errorRecord.error === 'string' && errorRecord.error.trim())
+      return errorRecord.error.trim();
+    if (typeof errorRecord.details === 'string' && errorRecord.details.trim())
+      return errorRecord.details.trim();
+
+    try {
+      const serialized = JSON.stringify(errorRecord);
+      if (serialized && serialized !== '{}')
+        return serialized;
+    } catch {
+      // ignore and fall through
+    }
+  }
+
+  try {
+    const fallback = String(error);
+    return fallback && fallback !== '[object Object]' ? fallback : null;
+  } catch {
+    return null;
+  }
 }
 
 
