@@ -122,11 +122,13 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
   inferCodeLanguage: (blockTitle: string, code: string) => string | null,
 }) {
 
+  const initialIsHTMLCode = heuristicIsBlockPureHTML(props.code);
+
   // state
   // const [isHovering, setIsHovering] = React.useState(false);
   const [fitScreen, setFitScreen] = React.useState(!!props.fitScreen);
   const [htmlReloadKey, setHtmlReloadKey] = React.useState(0);
-  const [showHTML, setShowHTML] = React.useState(props.initialShowHTML === true);
+  const [showHTML, setShowHTML] = React.useState(props.initialShowHTML === true || initialIsHTMLCode);
   const [showMermaid, setShowMermaid] = React.useState(true);
   const [showPlantUML, setShowPlantUML] = React.useState(true);
   const [showSVG, setShowSVG] = React.useState(true);
@@ -173,7 +175,7 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
 
   const lcBlockTitle = blockTitle.trim().toLowerCase();
 
-  const isHTMLCode = heuristicIsBlockPureHTML(code);
+  const isHTMLCode = initialIsHTMLCode;
   const renderHTML = isHTMLCode && showHTML;
 
   const isMermaidCode = lcBlockTitle === 'mermaid' && !blockIsPartial;

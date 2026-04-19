@@ -298,6 +298,20 @@ function _toOpenAIResponsesRequestInput(systemMessage: AixMessages_SystemMessage
   type FunctionCallMessage = OpenAIWire_Responses_Items.OutputFunctionCallItem;
   type FunctionCallOutputMessage = OpenAIWire_Responses_Items.FunctionToolCallOutput;
 
+  // Responses API requires every custom function_call history item to have a matching
+  // function_call_output later in the input. We precompute this so we can skip any
+  // incomplete tool calls that would otherwise trigger a 400 on the next turn.
+  const respondedFunctionCallIds = new Set<string>();
+  for (const aixMessage of chatSequence)
+    if (aixMessage.role === 'model')
+      for (const part of aixMessage.parts)
+        if (part.pt === 'tool_response' && part.response.type === 'function_call')
+          respondedFunctionCallIds.add(part.id);
+
+  // Tracks which custom function calls we actually emitted into the request, so we can
+  // ignore orphaned outputs if the corresponding invocation was dropped.
+  const emittedFunctionCallIds = new Set<string>();
+
   let allowUserAppend = true;
 
   function userMessage() {
@@ -456,11 +470,23 @@ function _toOpenAIResponsesRequestInput(systemMessage: AixMessages_SystemMessage
               const invocationType = invocation.type;
               switch (invocationType) {
                 case 'function_call':
+                  if (!respondedFunctionCallIds.has(modelPart.id)) {
+                    console.warn('[DEV] OpenAI Responses: skipping unmatched function call history item without a tool output', {
+                      callId: modelPart.id,
+                      functionName: invocation.name,
+                    });
+                    break;
+                  }
                   newFunctionCallMessage(modelPart.id, invocation.name, invocation.args || '');
+                  emittedFunctionCallIds.add(modelPart.id);
                   break;
                 case 'code_execution':
-                  console.warn('[DEV] notImplemented: OpenAI Responses: code execution tool calls');
-                  newFunctionCallMessage(modelPart.id, 'execute_code', invocation.code || '');
+                  // Hosted OpenAI code-interpreter traces are not valid function_call history items
+                  // for the stateless Responses input format. Re-sending them causes 400 errors such as
+                  // "No tool output found for function call ci_*" when the tool yielded images only.
+                  console.warn('[DEV] OpenAI Responses: skipping hosted code_execution invocation in history', {
+                    callId: modelPart.id,
+                  });
                   break;
                 default:
                   const _exhaustiveCheck: never = invocation;
@@ -476,12 +502,23 @@ function _toOpenAIResponsesRequestInput(systemMessage: AixMessages_SystemMessage
               const toolResponseType = modelPart.response.type;
               switch (toolResponseType) {
                 case 'function_call':
+                  if (!emittedFunctionCallIds.has(modelPart.id)) {
+                    console.warn('[DEV] OpenAI Responses: skipping orphaned function call output without a matching invocation in history', {
+                      callId: modelPart.id,
+                      functionName: modelPart.response.name,
+                    });
+                    break;
+                  }
                   const { result: functionCallOutput } = modelPart.response;
                   newFunctionCallOutputMessage(modelPart.id, functionCallOutput);
                   break;
                 case 'code_execution':
                   const { result: codeExecutionOutput } = modelPart.response;
-                  newFunctionCallOutputMessage(modelPart.id, codeExecutionOutput);
+                  if (codeExecutionOutput?.trim())
+                    modelMessage().content.push({
+                      type: 'output_text',
+                      text: `${modelPart.error ? '[Code interpreter error]' : '[Code interpreter output]'}\n${codeExecutionOutput}`,
+                    });
                   break;
                 default:
                   const _exhaustiveCheck: never = toolResponseType;
