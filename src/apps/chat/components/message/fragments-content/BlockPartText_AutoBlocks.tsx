@@ -1,5 +1,7 @@
 import * as React from 'react';
 
+import { Box } from '@mui/joy';
+
 import type { WordsDiff } from '~/modules/blocks/wordsdiff/RenderWordsDiff';
 import { AutoBlocksRenderer } from '~/modules/blocks/AutoBlocksRenderer';
 
@@ -66,20 +68,22 @@ export function BlockPartText_AutoBlocks(props: {
   }
 
   return (
-    <AutoBlocksRenderer
-      text={messageText || ''}
-      fromRole={props.messageRole}
-      contentScaling={props.contentScaling}
-      fitScreen={props.fitScreen}
-      isMobile={props.isMobile}
-      showUnsafeHtmlCode={props.showUnsafeHtmlCode}
-      renderAsWordsDiff={props.renderAsWordsDiff}
-      codeRenderVariant='enhanced' // was: { props.enhanceCodeBlocks ? 'enhanced' : 'outlined' }
-      textRenderVariant={props.disableMarkdownText ? 'text' : 'markdown'}
-      optiAllowSubBlocksMemo={props.optiAllowSubBlocksMemo}
-      onContextMenu={props.onContextMenu}
-      onDoubleClick={props.onDoubleClick}
-      setText={!props.setEditedText ? undefined : handleSetText}
-    />
+    <Box sx={{ width: '100%', minWidth: 0, maxWidth: '100%', display: 'block' }}>
+      <AutoBlocksRenderer
+        text={messageText || ''}
+        fromRole={props.messageRole}
+        contentScaling={props.contentScaling}
+        fitScreen={props.fitScreen}
+        isMobile={props.isMobile}
+        showUnsafeHtmlCode={props.showUnsafeHtmlCode}
+        renderAsWordsDiff={props.renderAsWordsDiff}
+        codeRenderVariant='enhanced' // was: { props.enhanceCodeBlocks ? 'enhanced' : 'outlined' }
+        textRenderVariant={props.disableMarkdownText ? 'text' : 'markdown'}
+        optiAllowSubBlocksMemo={props.optiAllowSubBlocksMemo}
+        onContextMenu={props.onContextMenu}
+        onDoubleClick={props.onDoubleClick}
+        setText={!props.setEditedText ? undefined : handleSetText}
+      />
+    </Box>
   );
 }

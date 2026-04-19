@@ -18,7 +18,7 @@ import { copyToClipboard } from '~/common/util/clipboardUtils';
 import { useFullscreenElement } from '~/common/components/useFullscreenElement';
 import { addSnackbar } from '~/common/components/snackbar/useSnackbarsStore';
 import { useUIPreferencesStore } from '~/common/stores/store-ui';
-import { canUseDesktopCalcpadRender, renderCalcpadCodeWithAutoFix } from '~/modules/designmate/calcpad.render';
+import { canUseDesktopCalcpadRender, extractDesignPadSyntaxErrorsFromHtml, renderCalcpadCodeWithAutoFix, repairDesignPadCodeFromDiagnosticsOrThrow } from '~/modules/designmate/calcpad.render';
 
 import { OVERLAY_BUTTON_RADIUS, OverlayButton, overlayButtonsActiveSx, overlayButtonsClassName, overlayButtonsTopRightSx, overlayGroupWithShadowSx, StyledOverlayButton } from '../OverlayButton';
 import { RenderCodeHtmlIFrame } from './code-renderers/RenderCodeHtmlIFrame';
@@ -228,6 +228,10 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
 
   const isCalcpadCode = heuristicIsCalcpadCode(blockTitle, code);
   const renderCalcpad = isCalcpadCode && showCalcpadPreview && !!calcpadHtml;
+  const designPadSyntaxErrors = React.useMemo(
+    () => isCalcpadCode && calcpadHtml ? extractDesignPadSyntaxErrorsFromHtml(calcpadHtml) : [],
+    [calcpadHtml, isCalcpadCode],
+  );
   const shouldStretchRenderedPreview = renderHTML || renderCalcpad;
 
   const renderSyntaxHighlight = !renderHTML && !renderMermaid && !renderPlantUML && !renderSVG && !renderCalcpad;
@@ -261,7 +265,7 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
       if (preview.repairCount > 0) {
         addSnackbar({
           key: `calcpad-repair-${props.semiStableId || blockTitle || 'code'}`,
-          message: preview.repairSummary || `Calcpad repaired and rendered after ${preview.repairCount} fix ${preview.repairCount === 1 ? 'pass' : 'passes'}.`,
+          message: preview.repairSummary || `DesignPad repaired and rendered after ${preview.repairCount} fix ${preview.repairCount === 1 ? 'pass' : 'passes'}.`,
           type: 'success',
           overrides: { autoHideDuration: 6000 },
         });
@@ -269,7 +273,7 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
     } catch (error: any) {
       addSnackbar({
         key: `calcpad-render-${props.semiStableId || blockTitle || 'code'}`,
-        message: error?.message || 'Calcpad render failed.',
+        message: error?.message || 'DesignPad render failed.',
         type: 'issue',
         overrides: { autoHideDuration: 7000 },
       });
@@ -316,6 +320,40 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
     showCalcpadPreview,
     sourceCode,
   ]);
+
+  const handleFixDesignPadSyntax = React.useCallback(async () => {
+    if (isCalcpadRendering || !designPadSyntaxErrors.length)
+      return;
+
+    setIsCalcpadRendering(true);
+    try {
+      const repair = await repairDesignPadCodeFromDiagnosticsOrThrow(code, designPadSyntaxErrors.join('\n'));
+      const preview = await renderCalcpadCodeWithAutoFix(repair.correctedCode);
+      const normalizedSource = sourceCode.trimEnd();
+      const normalizedResolved = preview.finalCode.trimEnd();
+
+      setCalcpadResolvedCode(normalizedResolved === normalizedSource ? null : preview.finalCode);
+      setCalcpadHtml(preview.html);
+      setShowCalcpadPreview(true);
+      setCalcpadReloadKey(key => key + 1);
+
+      addSnackbar({
+        key: `designpad-fix-${props.semiStableId || blockTitle || 'code'}`,
+        message: repair.repairSummary || 'DesignPad syntax was repaired and re-rendered.',
+        type: 'success',
+        overrides: { autoHideDuration: 6000 },
+      });
+    } catch (error: any) {
+      addSnackbar({
+        key: `designpad-fix-${props.semiStableId || blockTitle || 'code'}`,
+        message: error?.message || 'DesignPad syntax repair failed.',
+        type: 'issue',
+        overrides: { autoHideDuration: 7000 },
+      });
+    } finally {
+      setIsCalcpadRendering(false);
+    }
+  }, [blockTitle, code, designPadSyntaxErrors, isCalcpadRendering, props.semiStableId, sourceCode]);
 
 
   // Language & Highlight (2-stages)
@@ -446,14 +484,14 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
               </ButtonGroup>
             )}
 
-            {/* Render Calcpad locally via the BIMWERX desktop host */}
+            {/* Render DesignPad locally via the BIMWERX desktop host */}
             {isCalcpadCode && canDesktopRenderCalcpad && (
-              <ButtonGroup aria-label='Calcpad options' sx={overlayGroupWithShadowSx}>
+              <ButtonGroup aria-label='DesignPad options' sx={overlayGroupWithShadowSx}>
                 <OverlayButton
                   tooltip={noTooltips ? null
-                    : isCalcpadRendering ? 'Rendering Calcpad...'
+                    : isCalcpadRendering ? 'Rendering DesignPad...'
                       : renderCalcpad ? 'Show Code'
-                        : 'Render Calcpad'
+                        : 'Render DesignPad'
                   }
                   variant={renderCalcpad ? 'solid' : 'outlined'}
                   color='success'
@@ -464,13 +502,24 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
                 </OverlayButton>
                 {(renderCalcpad || calcpadHtml) && (
                   <OverlayButton
-                    tooltip={noTooltips ? null : isCalcpadRendering ? 'Rendering Calcpad...' : 'Re-render Calcpad'}
+                    tooltip={noTooltips ? null : isCalcpadRendering ? 'Rendering DesignPad...' : 'Re-render'}
                     variant='outlined'
                     color='success'
                     disabled={isCalcpadRendering}
                     onClick={handleRenderCalcpad}
                   >
                     <ReplayRoundedIcon />
+                  </OverlayButton>
+                )}
+                {!!designPadSyntaxErrors.length && (
+                  <OverlayButton
+                    tooltip={noTooltips ? null : isCalcpadRendering ? 'Repairing DesignPad syntax...' : 'Fix Syntax'}
+                    variant='outlined'
+                    color='warning'
+                    disabled={isCalcpadRendering}
+                    onClick={handleFixDesignPadSyntax}
+                  >
+                    <EditRoundedIcon />
                   </OverlayButton>
                 )}
               </ButtonGroup>

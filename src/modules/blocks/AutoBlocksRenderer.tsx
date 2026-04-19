@@ -18,6 +18,39 @@ import { useAutoBlocksMemoSemiStable, useTextCollapser } from './blocks.hooks';
 import { useScaledCodeSx, useScaledImageSx, useScaledTypographySx, useToggleExpansionButtonSx } from './blocks.styles';
 
 
+function looksLikeDesignPadCode(blockTitle: string, code: string): boolean {
+  const lcBlockTitle = blockTitle.trim().toLowerCase();
+  if (
+    lcBlockTitle === 'calcpad' ||
+    lcBlockTitle === 'designpad' ||
+    lcBlockTitle === 'designpad-script' ||
+    lcBlockTitle.endsWith('.calcpad') ||
+    lcBlockTitle.endsWith('.cpad')
+  )
+    return true;
+
+  const trimmedCode = code.trim();
+  if (!trimmedCode || trimmedCode.length < 24)
+    return false;
+
+  let signalCount = 0;
+  if (/(^|\n)\s*['"].+/m.test(trimmedCode))
+    signalCount++;
+  if (/(^|\n)\s*#(?:if|else if|else|end if|repeat|for|while|loop|hide|show|round|format|deg|rad|gra)\b/i.test(trimmedCode))
+    signalCount++;
+  if (/(^|\n)\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*[^=\r\n]+/m.test(trimmedCode))
+    signalCount++;
+  if (/\b(?:mm|cm|m|N|kN|MPa|GPa|kNm|Nm|deg|rad)\b/.test(trimmedCode))
+    signalCount++;
+
+  return signalCount >= 2;
+}
+
+function normalizeCodeBlockTitle(blockTitle: string, code: string): string {
+  return looksLikeDesignPadCode(blockTitle, code) ? 'DesignPad' : blockTitle;
+}
+
+
 // configuration
 const DISABLE_MARKDOWN_PROGRESSIVE_PREPROCESS = true; // set to false to render LaTeX inline formulas as they come in, not at the end of the message
 // import '~/common/util/forceTouchToDoubleClick'; // Future: Mac trackpad: force press → double-click
@@ -152,6 +185,7 @@ export function AutoBlocksRenderer(props: {
             // const RenderCodeMemoOrNot = renderCodeMemoOrNot(true /* optimizeMemoBeforeLastBlock */);
             // NOTE: 2024-09-24/2: Keep it for now, as the issue seems to be on the upstream ChatMessage
             const RenderCodeMemoOrNot = renderCodeMemoOrNot(optimizeMemoBeforeLastBlock);
+            const displayCodeBlockTitle = normalizeCodeBlockTitle(bkInput.title, bkInput.code);
 
             // Custom handling for some of our blocks
             const disableBecauseInProgress = bkInput.isPartial && props.optiAllowSubBlocksMemo === true;
@@ -164,7 +198,7 @@ export function AutoBlocksRenderer(props: {
                 {(props.codeRenderVariant === 'enhanced' && !disableEnhancedRender) ? (
                   <EnhancedRenderCode
                     semiStableId={bkInput.bkId}
-                    code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial || isTextCollapsed}
+                    code={bkInput.code} title={displayCodeBlockTitle} isPartial={bkInput.isPartial || isTextCollapsed}
                     contentScaling={props.contentScaling}
                     fitScreen={props.fitScreen}
                     isMobile={props.isMobile}
@@ -178,7 +212,7 @@ export function AutoBlocksRenderer(props: {
                 ) : (
                   <RenderCodeMemoOrNot
                     semiStableId={bkInput.bkId}
-                    code={bkInput.code} title={bkInput.title} isPartial={bkInput.isPartial || isTextCollapsed}
+                    code={bkInput.code} title={displayCodeBlockTitle} isPartial={bkInput.isPartial || isTextCollapsed}
                     fitScreen={props.fitScreen}
                     initialShowHTML={props.showUnsafeHtmlCode /* && !bkInput.isPartial NOTE: with this, it would be only auto-rendered at the end, preventing broken renders */}
                     noCopyButton={props.blocksProcessor === 'diagram' || isTextCollapsed}

@@ -13,27 +13,27 @@ const DEFAULT_CALCPAD_REPAIR_ATTEMPTS = 3;
 
 const CALCPAD_REPAIR_TOOL = {
   name: 'repair_calcpad_code',
-  description: 'Repairs Calcpad source code so it renders without errors while preserving the engineering intent.',
+  description: 'Repairs DesignPad source code so it renders without errors while preserving the engineering intent.',
   inputSchema: z.object({
-    corrected_code: z.string().describe('The full corrected Calcpad source code only, with no markdown fences.'),
+    corrected_code: z.string().describe('The full corrected DesignPad source code only, with no markdown fences.'),
     repair_summary: z.string().describe('A short summary of the repair.').optional(),
   }),
 } as const;
 
 const CALCPAD_REPAIR_SYSTEM_MESSAGE = `
-You repair Calcpad / DesignPad engineering worksheets.
+You repair DesignPad engineering worksheets.
 
 Your task is to fix syntax and definition errors so the worksheet renders successfully while preserving the original calculation intent, report structure, and engineering meaning.
 
-Important Calcpad rules:
+Important DesignPad syntax rules:
 - Plain report text and HTML snippets belong in quoted comment lines using single or double quotes.
 - Variables and functions must be defined before use.
 - Conditional flow uses #if / #else if / #else / #end if.
 - Iteration uses #repeat, #for, or #while and ends with #loop.
-- Calcpad is units-aware, so numeric literals may include units such as mm, m, kN, MPa, and kNm.
+- DesignPad is units-aware, so numeric literals may include units such as mm, m, kN, MPa, and kNm.
 - HTML, CSS, SVG, and JS are allowed inside quoted output text when needed for presentation.
 - Keep repairs minimal and do not add TODOs, placeholders, or explanatory prose.
-- Return the corrected Calcpad source only through the function call.
+- Return the corrected DesignPad source only through the function call.
 `.trim();
 
 const CALCPAD_PREVIEW_STYLE = `
@@ -107,13 +107,25 @@ export function canUseDesktopCalcpadRender(): boolean {
 export async function renderCalcpadCodeWithAutoFix(initialCode: string, maxRepairAttempts: number = DEFAULT_CALCPAD_REPAIR_ATTEMPTS): Promise<DesignMateCalcpadAutoRenderResult> {
   let workingCode = initialCode;
   if (!workingCode.trim())
-    throw new Error('No Calcpad code was available to render.');
+    throw new Error('No DesignPad code was available to render.');
 
   let repairSummary: string | null = null;
 
   for (let repairCount = 0; repairCount <= maxRepairAttempts; repairCount++) {
     const renderResult = await requestDesktopCalcpadRender(workingCode);
     if (renderResult.ok) {
+      const syntaxErrors = extractDesignPadSyntaxErrorsFromHtml(renderResult.html);
+      if (syntaxErrors.length && repairCount < maxRepairAttempts) {
+        const repair = await repairDesignPadCodeFromDiagnosticsOrThrow(workingCode, syntaxErrors.join('\n'), repairCount);
+        const nextCode = repair.correctedCode.trim();
+        if (!nextCode || nextCode === workingCode.trim())
+          throw new Error(syntaxErrors.join('\n'));
+
+        workingCode = nextCode;
+        repairSummary = repair.repairSummary;
+        continue;
+      }
+
       return {
         html: prepareCalcpadPreviewHtml(renderResult.html, renderResult.baseUrl ?? null),
         finalCode: workingCode,
@@ -122,11 +134,11 @@ export async function renderCalcpadCodeWithAutoFix(initialCode: string, maxRepai
       };
     }
 
-    const renderError = renderResult.error?.trim() || 'Calcpad render failed.';
+    const renderError = renderResult.error?.trim() || 'DesignPad render failed.';
     if (renderResult.code !== 'calcpad_compile_error' || repairCount >= maxRepairAttempts)
       throw new Error(renderResult.details ? `${renderError}\n${renderResult.details}` : renderError);
 
-    const repair = await repairCalcpadCodeOrThrow(workingCode, renderError, repairCount);
+    const repair = await repairDesignPadCodeFromDiagnosticsOrThrow(workingCode, renderError, repairCount);
     const nextCode = repair.correctedCode.trim();
     if (!nextCode || nextCode === workingCode.trim())
       throw new Error(renderError);
@@ -135,7 +147,29 @@ export async function renderCalcpadCodeWithAutoFix(initialCode: string, maxRepai
     repairSummary = repair.repairSummary;
   }
 
-  throw new Error('Calcpad render failed after repeated repair attempts.');
+  throw new Error('DesignPad render failed after repeated repair attempts.');
+}
+
+
+export function extractDesignPadSyntaxErrorsFromHtml(html: string): string[] {
+  const htmlText = extractTextFromHtml(html);
+  if (!htmlText)
+    return [];
+
+  const normalizedText = htmlText
+    .replace(/\u00A0/g, ' ')
+    .replace(/\r/g, '\n');
+
+  const errorMatches = normalizedText.match(/Error in "[\s\S]*?(?=(?:Error in ")|$)/g) || [];
+
+  return errorMatches
+    .map(errorText => errorText.replace(/\s+\n/g, ' ').replace(/\n+/g, ' ').trim())
+    .filter(Boolean);
+}
+
+
+export async function repairDesignPadCodeFromDiagnosticsOrThrow(codeToRepair: string, diagnostics: string, repairCount: number = 0): Promise<{ correctedCode: string; repairSummary: string | null }> {
+  return repairCalcpadCodeOrThrow(codeToRepair, diagnostics, repairCount);
 }
 
 
@@ -186,7 +220,7 @@ async function requestDesktopCalcpadRender(code: string): Promise<DesignMateDesk
     return {
       ok: false,
       code: 'calcpad_empty_code',
-      error: 'No Calcpad code was provided to the local renderer.',
+      error: 'No DesignPad code was provided to the local renderer.',
     };
   }
 
@@ -195,7 +229,7 @@ async function requestDesktopCalcpadRender(code: string): Promise<DesignMateDesk
     return {
       ok: false,
       code: 'calcpad_bridge_unavailable',
-      error: 'Calcpad rendering is only available inside the BIMWERX desktop host right now.',
+      error: 'DesignPad rendering is only available inside the BIMWERX desktop host right now.',
     };
   }
 
@@ -207,7 +241,7 @@ async function requestDesktopCalcpadRender(code: string): Promise<DesignMateDesk
     return {
       ok: false,
       code: 'calcpad_transport_error',
-      error: errorDetails || 'The desktop host could not render this Calcpad code.',
+      error: errorDetails || 'The desktop host could not render this DesignPad code.',
       details: errorDetails || null,
     };
   }
@@ -259,7 +293,7 @@ function parseDesktopCalcpadRenderResult(rawResult: unknown): DesignMateDesktopC
 
   const errorMessage = parsedResult && typeof parsedResult === 'object' && typeof (parsedResult as any).error === 'string'
     ? (parsedResult as any).error
-    : 'The desktop host returned an unreadable Calcpad render result.';
+    : 'The desktop host returned an unreadable DesignPad render result.';
 
   return {
     ok: false,
@@ -376,19 +410,19 @@ async function repairCalcpadCodeOrThrow(codeToRepair: string, renderError: strin
   const llmId = getDomainModelIdOrThrow(['codeApply'], true, false, 'designmate-calcpad-repair');
 
   const userMessage = `
-Repair this Calcpad worksheet so it renders successfully.
+Repair this DesignPad worksheet so it renders successfully.
 
 Attempt ${repairCount + 1}
 
-Current Calcpad code:
-\`\`\`calcpad
+Current DesignPad code:
+\`\`\`designpad
 ${codeToRepair}
 \`\`\`
 
-Calcpad render error:
+DesignPad render diagnostics:
 ${renderError}
 
-Return only the corrected Calcpad code through the function call.
+Return only the corrected DesignPad code through the function call.
 `.trim();
 
   const request: AixAPIChatGenerate_Request = {
@@ -415,4 +449,21 @@ Return only the corrected Calcpad code through the function call.
     correctedCode: parsedArgs.corrected_code,
     repairSummary: parsedArgs.repair_summary?.trim() || null,
   };
+}
+
+
+function extractTextFromHtml(html: string): string {
+  if (!html)
+    return '';
+
+  if (typeof DOMParser !== 'undefined') {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body?.textContent || doc.documentElement?.textContent || '';
+  }
+
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ');
 }
