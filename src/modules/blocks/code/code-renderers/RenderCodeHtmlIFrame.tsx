@@ -10,7 +10,9 @@ img, picture, svg, video { display: block;max-width: 100%; }
 
 export const blocksRenderHTMLIFrameCss: React.CSSProperties = {
   flexGrow: 1,
+  display: 'block',
   width: '100%',
+  minWidth: '100%',
   height: '54svh',
   border: 'none',
   boxSizing: 'border-box',

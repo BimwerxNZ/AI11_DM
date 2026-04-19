@@ -38,6 +38,8 @@ const _editLayoutSx: SxProps = {
 const _startLayoutSx: SxProps = {
   ..._editLayoutSx,
   justifyContent: 'flex-start',
+  width: '100%',
+  minWidth: 0,
 } as const;
 
 const _endLayoutSx: SxProps = {
