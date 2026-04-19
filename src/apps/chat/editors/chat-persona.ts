@@ -122,8 +122,11 @@ export async function runPersonaOnConversationHead(
   cHandler.clearAbortController('chat-persona');
 
   if (autoTitleChat) {
-    // fire/forget, this will only set the title if it's not already set
-    void autoConversationTitle(conversationId, false);
+    // Avoid a second provider request after a failed turn; use a local fallback title instead.
+    if (messageStatus.outcome === 'completed')
+      void autoConversationTitle(conversationId, false);
+    else if (messageStatus.outcome === 'failed')
+      void autoConversationTitle(conversationId, false, { heuristicOnly: true, silenceErrors: true });
   }
 
   if (!hasBeenAborted && (autoSuggestDiagrams || autoSuggestHTMLUI || autoSuggestQuestions))
