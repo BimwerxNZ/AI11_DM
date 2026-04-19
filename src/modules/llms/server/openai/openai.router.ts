@@ -14,7 +14,7 @@ import { wireLocalAIModelsApplyOutputSchema, wireLocalAIModelsAvailableOutputSch
 import { ListModelsResponse_schema, ModelDescriptionSchema } from '../llm.server.types';
 import { listModelsRunDispatch } from '../listModels.dispatch';
 
-import { openAIAccess, openAIAccessDiagnostics, OpenAIAccessSchema, openAIAccessDiagnosticsSchema, openAIAccessSchema, OPENAI_API_PATHS } from './openai.access';
+import { openAIAccess, OpenAIAccessSchema, openAIAccessSchema, OPENAI_API_PATHS } from './openai.access';
 
 
 // Router Input/Output Schemas
@@ -110,16 +110,6 @@ const createImagesInputSchema = z.object({
 
 
 export const llmOpenAIRouter = createTRPCRouter({
-
-  /* [OpenAI] Explain which saved credentials path is currently active */
-  diagnosticsAccess: edgeProcedure
-    .input(z.object({
-      access: openAIAccessSchema,
-    }))
-    .output(openAIAccessDiagnosticsSchema)
-    .query(async ({ input: { access } }) => {
-      return openAIAccessDiagnostics(access);
-    }),
 
   /* [OpenAI] List the Models available */
   listModels: edgeProcedure

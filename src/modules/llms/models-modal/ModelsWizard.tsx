@@ -7,7 +7,6 @@ import { FormInputKey } from '~/common/components/forms/FormInputKey';
 import { TooltipOutlined } from '~/common/components/TooltipOutlined';
 import { llmsStoreActions, llmsStoreState, useModelsStore } from '~/common/stores/llms/store-llms';
 import { useShallowStabilizer } from '~/common/util/hooks/useShallowObject';
-import { apiQuery } from '~/common/util/trpc.client';
 
 import type { IModelVendor } from '../vendors/IModelVendor';
 import { LLMVendorIconSprite } from '../components/LLMVendorIconSprite';
@@ -106,31 +105,21 @@ function WizardProviderSetup(props: {
 
   // external state
   const stabilizeTransportAccess = useShallowStabilizer<Record<string, any>>();
-  const { serviceKeyValue, serviceLLMsCount, serviceAccess } = useModelsStore(useShallow(({ llms, sources }) => {
+  const { serviceKeyValue, serviceLLMsCount } = useModelsStore(useShallow(({ llms, sources }) => {
 
     // find the service | null
     const vendorService = sources.find(s => s.vId === providerVendor.id) ?? null;
 
     // (safe) service-derived properties
     const serviceLLMsCount = !vendorService ? null : llms.filter(llm => llm.sId === vendorService.id).length;
-    const serviceAccess = stabilizeTransportAccess(providerVendor.getTransportAccess(vendorService?.setup || {}));
+    const serviceAccess = stabilizeTransportAccess(providerVendor.getTransportAccess(vendorService?.setup));
     const serviceKeyValue = !serviceAccess ? null : vendorService?.setup[providerSettingsKey] ?? null;
 
     return {
       serviceKeyValue,
       serviceLLMsCount,
-      serviceAccess,
     };
   }));
-
-  const openAIDiagnosticsQuery = apiQuery.llmOpenAI.diagnosticsAccess.useQuery(
-    { access: serviceAccess as any },
-    {
-      enabled: !props.isHidden && providerVendor.id === 'openai' && !!serviceAccess,
-      staleTime: 60_000,
-      refetchOnWindowFocus: false,
-    },
-  );
 
   // [effect] initialize the local key
   const triggerValueLoad = localValue === null;
@@ -286,30 +275,6 @@ function WizardProviderSetup(props: {
         <Typography level='body-xs' color='warning' sx={{ ml: 7, px: 0.5 }}>No models found.</Typography>
       )}
       {!!updateError && <Typography level='body-xs' color='danger' sx={{ ml: 7, px: 0.5 }}>{updateError}</Typography>}
-      {providerVendor.id === 'openai' && !!openAIDiagnosticsQuery.data && (
-        <Sheet variant='soft' color='neutral' sx={{ ml: 7, px: 1, py: 0.75, borderRadius: 'sm', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          <Typography level='body-xs' sx={{ fontWeight: 600 }}>
-            OpenAI diagnostics for saved config
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            <Chip size='sm' color={openAIDiagnosticsQuery.data.credentialSource === 'none' ? 'danger' : openAIDiagnosticsQuery.data.credentialSource === 'browser' ? 'success' : 'warning'} variant='soft'>
-              Key: {openAIDiagnosticsQuery.data.credentialSource === 'browser' ? 'browser saved key' : openAIDiagnosticsQuery.data.credentialSource === 'server-env' ? 'server env fallback' : 'missing'}
-            </Chip>
-            <Chip size='sm' color={openAIDiagnosticsQuery.data.hostSource === 'browser' ? 'warning' : 'neutral'} variant='soft'>
-              Host: {openAIDiagnosticsQuery.data.hostSource === 'browser' ? 'browser override' : openAIDiagnosticsQuery.data.hostSource === 'server-env' ? 'server env override' : 'default OpenAI'}
-            </Chip>
-            <Chip size='sm' color={openAIDiagnosticsQuery.data.orgSource === 'none' ? 'neutral' : 'warning'} variant='soft'>
-              Org: {openAIDiagnosticsQuery.data.orgSource === 'browser' ? 'browser override' : openAIDiagnosticsQuery.data.orgSource === 'server-env' ? 'server env override' : 'none'}
-            </Chip>
-            <Chip size='sm' color={openAIDiagnosticsQuery.data.heliconeEnabled ? 'warning' : 'neutral'} variant='soft'>
-              Helicone: {openAIDiagnosticsQuery.data.heliconeEnabled ? 'enabled' : 'off'}
-            </Chip>
-          </Box>
-          <Typography level='body-xs' sx={{ color: 'text.tertiary' }}>
-            Effective host: {openAIDiagnosticsQuery.data.resolvedHost}
-          </Typography>
-        </Sheet>
-      )}
 
     </Box>
   );
