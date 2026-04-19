@@ -165,6 +165,7 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
   const [calcpadResolvedCode, setCalcpadResolvedCode] = React.useState<string | null>(null);
   const [calcpadReloadKey, setCalcpadReloadKey] = React.useState(0);
   const [isCalcpadRendering, setIsCalcpadRendering] = React.useState(false);
+  const calcpadAutoRenderKeyRef = React.useRef<string | null>(null);
   const fullScreenElementRef = React.useRef<HTMLDivElement>(null);
 
   // external state
@@ -239,6 +240,7 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
     setCalcpadResolvedCode(null);
     setCalcpadReloadKey(0);
     setIsCalcpadRendering(false);
+    calcpadAutoRenderKeyRef.current = null;
   }, [blockTitle, sourceCode]);
 
   const handleRenderCalcpad = React.useCallback(async () => {
@@ -289,6 +291,31 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
 
     await handleRenderCalcpad();
   }, [calcpadHtml, handleRenderCalcpad, renderCalcpad]);
+
+  React.useEffect(() => {
+    if (!isCalcpadCode || !canDesktopRenderCalcpad || blockIsPartial)
+      return;
+
+    const autoRenderKey = `${blockTitle}\u0000${sourceCode}`;
+    if (calcpadAutoRenderKeyRef.current === autoRenderKey)
+      return;
+
+    if (calcpadHtml || showCalcpadPreview || isCalcpadRendering)
+      return;
+
+    calcpadAutoRenderKeyRef.current = autoRenderKey;
+    void handleRenderCalcpad();
+  }, [
+    blockIsPartial,
+    blockTitle,
+    calcpadHtml,
+    canDesktopRenderCalcpad,
+    handleRenderCalcpad,
+    isCalcpadCode,
+    isCalcpadRendering,
+    showCalcpadPreview,
+    sourceCode,
+  ]);
 
 
   // Language & Highlight (2-stages)

@@ -36,6 +36,25 @@ Important Calcpad rules:
 - Return the corrected Calcpad source only through the function call.
 `.trim();
 
+const CALCPAD_PREVIEW_STYLE = `
+html, body {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100% !important;
+  margin: 0 !important;
+}
+body {
+  box-sizing: border-box;
+  padding: 1rem 1.25rem 1.5rem !important;
+}
+body > * {
+  max-width: none !important;
+}
+table {
+  max-width: 100%;
+}
+`.trim();
+
 export interface DesignMateDesktopHost {
   renderCalcpad: (code: string) => Promise<unknown>;
 }
@@ -122,20 +141,38 @@ export async function renderCalcpadCodeWithAutoFix(initialCode: string, maxRepai
 
 function prepareCalcpadPreviewHtml(html: string, baseUrl: string | null): string {
   const htmlString = String(html || '');
+  const previewHtml = injectCalcpadPreviewStyle(htmlString);
   if (!baseUrl)
-    return htmlString;
+    return previewHtml;
 
   const normalizedBaseUrl = `${baseUrl}`.trim().replace(/\/+$/, '') + '/';
 
-  if (/<html[\s>]/i.test(htmlString)) {
-    if (/<base\s/i.test(htmlString))
-      return htmlString;
+  if (/<html[\s>]/i.test(previewHtml)) {
+    if (/<base\s/i.test(previewHtml))
+      return previewHtml;
 
-    if (/<head(\s[^>]*)?>/i.test(htmlString))
-      return htmlString.replace(/<head(\s[^>]*)?>/i, match => `${match}<base href="${normalizedBaseUrl}">`);
+    if (/<head(\s[^>]*)?>/i.test(previewHtml))
+      return previewHtml.replace(/<head(\s[^>]*)?>/i, match => `${match}<base href="${normalizedBaseUrl}">`);
   }
 
-  return `<!doctype html><html><head><base href="${normalizedBaseUrl}"></head><body>${htmlString}</body></html>`;
+  return `<!doctype html><html><head><base href="${normalizedBaseUrl}"><style id="designmate-calcpad-preview">${CALCPAD_PREVIEW_STYLE}</style></head><body>${previewHtml}</body></html>`;
+}
+
+
+function injectCalcpadPreviewStyle(html: string): string {
+  if (!html.trim())
+    return html;
+
+  if (html.includes('id="designmate-calcpad-preview"') || html.includes("id='designmate-calcpad-preview'"))
+    return html;
+
+  if (/<head(\s[^>]*)?>/i.test(html))
+    return html.replace(/<head(\s[^>]*)?>/i, match => `${match}<style id="designmate-calcpad-preview">${CALCPAD_PREVIEW_STYLE}</style>`);
+
+  if (/<html[\s>]/i.test(html))
+    return html.replace(/<html(\s[^>]*)?>/i, match => `${match}<head><style id="designmate-calcpad-preview">${CALCPAD_PREVIEW_STYLE}</style></head>`);
+
+  return `<!doctype html><html><head><style id="designmate-calcpad-preview">${CALCPAD_PREVIEW_STYLE}</style></head><body>${html}</body></html>`;
 }
 
 
