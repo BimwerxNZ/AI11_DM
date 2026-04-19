@@ -5,6 +5,7 @@ import { AixClientFunctionCallToolDefinition, aixFunctionCallTool, aixRequireSin
 import { aixCGR_ChatSequence_FromDMessagesOrThrow, aixCGR_SystemMessageText } from '~/modules/aix/client/aix.client.chatGenerateRequest';
 import { aixChatGenerateContent_DMessage_orThrow, aixCreateChatGenerateContext } from '~/modules/aix/client/aix.client';
 
+import { addSnackbar } from '~/common/components/snackbar/useSnackbarsStore';
 import { ConversationsManager } from '~/common/chat-overlay/ConversationsManager';
 import { createDMessageTextContent, type DMessage, messageFragmentsReduceText } from '~/common/stores/chat/chat.message';
 import { createErrorContentFragment, createPlaceholderVoidFragment, createTextContentFragment } from '~/common/stores/chat/chat.fragments';
@@ -55,6 +56,37 @@ interface AutoChatFollowUpContext {
 
 function _getSystemMessage(tool: DumbToolTBD, variables: Record<string, string>, templateName: string): AixAPIChatGenerate_Request['systemMessage'] {
   return aixCGR_SystemMessageText(processPromptTemplate(tool.sys, { ...variables, functionName: tool.fun.name }, templateName));
+}
+
+function _createTextOnlyFollowUpMessages(userMessage: DMessage, assistantMessage: DMessage, reminderText: string): DMessage[] {
+  const messages: DMessage[] = [];
+
+  const userText = messageFragmentsReduceText(userMessage.fragments).trim();
+  if (userText)
+    messages.push(createDMessageTextContent('user', userText));
+
+  const assistantText = messageFragmentsReduceText(assistantMessage.fragments).trim();
+  if (assistantText)
+    messages.push(createDMessageTextContent('assistant', assistantText));
+
+  messages.push(createDMessageTextContent('user', reminderText));
+  return messages;
+}
+
+function _isExpiredToolCallHistoryError(error: unknown): boolean {
+  const message = `${(error as any)?.message || error || ''}`;
+  return message.includes('No tool output found for function call');
+}
+
+function _handleExpiredFollowUpError(cHandler: ReturnType<typeof ConversationsManager.getHandler>, assistantMessageId: string, fragmentId: string, followUpName: string): boolean {
+  cHandler.messageFragmentDelete(assistantMessageId, fragmentId, false, false);
+  addSnackbar({
+    key: `chat-followup-${followUpName}-fallback`,
+    message: `${followUpName} skipped for this older tool-generated reply.`,
+    type: 'issue',
+    overrides: { autoHideDuration: 5000 },
+  });
+  return true;
 }
 
 function _getAutoChatFollowUpContext(conversationId: string, assistantMessageId: string): AutoChatFollowUpContext | null {
@@ -113,11 +145,10 @@ async function _runAutoChatFollowUpHTMLUI(context: AutoChatFollowUpContext): Pro
   cHandler.messageFragmentAppend(assistantMessageId, placeholderFragment, false, false);
 
   const systemMessage = _getSystemMessage(uiTool, { personaSystemPrompt }, 'chat-followup-htmlui_system');
-  const chatSequence = await aixCGR_ChatSequence_FromDMessagesOrThrow([
-    userMessage,
-    assistantMessage,
-    createDMessageTextContent('user', processPromptTemplate(uiTool.usr, { functionName: uiTool.fun.name }, 'chat-followup-htmlui_reminder')),
-  ]);
+  const reminderText = processPromptTemplate(uiTool.usr, { functionName: uiTool.fun.name }, 'chat-followup-htmlui_reminder');
+  const chatSequence = await aixCGR_ChatSequence_FromDMessagesOrThrow(
+    _createTextOnlyFollowUpMessages(userMessage, assistantMessage, reminderText),
+  );
 
   aixChatGenerateContent_DMessage_orThrow(
     codeLlmId,
@@ -146,6 +177,8 @@ async function _runAutoChatFollowUpHTMLUI(context: AutoChatFollowUpContext): Pro
 
     cHandler.messageFragmentDelete(assistantMessageId, placeholderFragment.fId, false, false);
   }).catch(error => {
+    if (_isExpiredToolCallHistoryError(error) && _handleExpiredFollowUpError(cHandler, assistantMessageId, placeholderFragment.fId, 'Auto-UI'))
+      return;
     cHandler.messageFragmentReplace(assistantMessageId, placeholderFragment.fId, createErrorContentFragment(`Auto-UI generation issue: ${error?.message || error}`), false);
   });
 }
@@ -275,11 +308,10 @@ export async function autoChatFollowUps(conversationId: string, assistantMessage
 
     // Instructions
     const systemMessage = _getSystemMessage(diagramsTool, { personaSystemPrompt }, 'chat-followup-diagram_system');
-    const chatSequence = await aixCGR_ChatSequence_FromDMessagesOrThrow([
-      userMessage,
-      assistantMessage,
-      createDMessageTextContent('user', processPromptTemplate(diagramsTool.usr, { functionName: diagramsTool.fun.name }, 'chat-followup-diagram_reminder')),
-    ]);
+    const reminderText = processPromptTemplate(diagramsTool.usr, { functionName: diagramsTool.fun.name }, 'chat-followup-diagram_reminder');
+    const chatSequence = await aixCGR_ChatSequence_FromDMessagesOrThrow(
+      _createTextOnlyFollowUpMessages(userMessage, assistantMessage, reminderText),
+    );
 
     // Strict call to a function
     aixChatGenerateContent_DMessage_orThrow(
@@ -313,6 +345,8 @@ export async function autoChatFollowUps(conversationId: string, assistantMessage
       // no diagram generated
       cHandler.messageFragmentDelete(resolvedAssistantMessageId, placeholderFragment.fId, false, false);
     }).catch(error => {
+      if (_isExpiredToolCallHistoryError(error) && _handleExpiredFollowUpError(cHandler, resolvedAssistantMessageId, placeholderFragment.fId, 'Auto-Diagram'))
+        return;
       cHandler.messageFragmentReplace(resolvedAssistantMessageId, placeholderFragment.fId, createErrorContentFragment(`Auto-Diagram generation issue: ${error?.message || error}`), false);
     });
   }
