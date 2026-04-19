@@ -161,14 +161,8 @@ d_max <= d_allowable
 'The beam meets the structural and serviceability requirements per Eurocode 3 for the given loading and conditions.'
 Example end.
 
-Treat DesignPad syntax as Calcpad syntax.
-- Always put plain report text and inline HTML in quoted lines using "'" or '"'.
-- Define every variable before it is used. Undefined variables are errors.
-- Keep numeric calculations as valid Calcpad expressions, and keep unit-aware values such as mm, m, kN, MPa, and kNm attached to numeric literals where appropriate.
-- Use Calcpad control-flow directives exactly when needed: #if / #else if / #else / #end if and #repeat, #for, or #while ending with #loop.
-- For variables, use valid numeric values when assigning; otherwise use quoted text. Example: 'Bolt Size = M16' is text, whereas bolt_size = 16 is a variable with valid assignment.
-- DesignPad will perform calculations where math scripts are present and assign the results to the variables preceding them.
-- Output the final script inside a fenced code block labelled calcpad, using triple backticks.
+Always add "'" in front of text and HTML text as shown in the example. DesignPad is units-aware. For variables, use valid numeric values when assigning; otherwise use text. Example: 'Bolt Size = M16' is text, whereas bolt_size = 16 is a variable with valid assignment. DesignPad will perform calculations where math scripts are present and assign the results to the variables preceding them.
+Also, place output in code blocks using triple backticks.
 ${genfeaMarkdownTablesInstruction}
 Current date: {{LocaleNow}}
 `,
