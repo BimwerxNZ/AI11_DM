@@ -322,6 +322,9 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
       const preview = await renderCalcpadCodeWithAutoFix(repair.correctedCode);
       const normalizedSource = sourceCode.trimEnd();
       const normalizedResolved = preview.finalCode.trimEnd();
+      const persistedFix = normalizedResolved !== normalizedSource
+        ? !!props.onReplaceInCode?.(sourceCode, preview.finalCode)
+        : false;
 
       setCalcpadResolvedCode(normalizedResolved === normalizedSource ? null : preview.finalCode);
       setCalcpadHtml(preview.html);
@@ -330,7 +333,11 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
 
       addSnackbar({
         key: `designpad-fix-${props.semiStableId || blockTitle || 'code'}`,
-        message: repair.repairSummary || 'DesignPad syntax was repaired and re-rendered.',
+        message: repair.repairSummary || (
+          persistedFix
+            ? 'DesignPad syntax was repaired, saved, and re-rendered.'
+            : 'DesignPad syntax was repaired and re-rendered.'
+        ),
         type: 'success',
         overrides: { autoHideDuration: 6000 },
       });
@@ -344,7 +351,7 @@ function RenderCodeImpl(props: RenderCodeBaseProps & {
     } finally {
       setIsCalcpadRendering(false);
     }
-  }, [blockTitle, code, designPadSyntaxErrors, isCalcpadRendering, props.semiStableId, sourceCode]);
+  }, [blockTitle, code, designPadSyntaxErrors, isCalcpadRendering, props.onReplaceInCode, props.semiStableId, sourceCode]);
 
 
   // Language & Highlight (2-stages)
